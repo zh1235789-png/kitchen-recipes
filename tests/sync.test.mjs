@@ -129,3 +129,15 @@ test('syncNow: 401 はエラー表示にして、データは消さない', asyn
   assert.match(a.$('SY.err'), /無効/);
   assert.ok(a.$('S.foods.length') > 30);
 });
+
+test('両方の端末から消えた項目の墓標も引き継ぎ、さらに古い端末から生き返らない（Codex指摘）', () => {
+  const a = fresh();
+  a.$('S.recipes = S.recipes.filter(r => r.id !== "seed-chk4"); save()');
+  // 相手も既に消している（配列に無い）が、墓標は相手側には無い
+  const b = doc(fresh()); b.recipes = b.recipes.filter(r => r.id !== 'seed-chk4');
+  a.$(`mergeRemote(${JSON.stringify(b)})`);
+  assert.equal(a.$('S.deleted["recipes:seed-chk4"]'), T);
+  // まだ消していない古い端末の写し
+  a.$(`mergeRemote(${JSON.stringify(doc(fresh()))})`);
+  assert.ok(!a.$('S.recipes.some(r => r.id === "seed-chk4")'));
+});

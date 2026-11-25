@@ -138,7 +138,7 @@ ol.steps li{margin-bottom:8px}
   <button data-tab="settings" class="tab-btn"><span class="ic">⚙️</span>設定</button>
 </nav>
 <script>
-const APP_VERSION = '2026-11-25.2';
+const APP_VERSION = '2026-11-25.3';
 const KEY = 'kitchen.v1';
 const PLACES = ['冷蔵', '冷凍', '常温', '調味料'];
 const STATUS = { have: 'あり', low: '少ない', out: 'なし' };
@@ -547,7 +547,9 @@ function mergeRemote(R){
   if (!R || R.app !== 'kitchen-recipes' || !validState(R)) return false;
   const rdel = (R.deleted && typeof R.deleted === 'object') ? R.deleted : {};
   const mdel = S.deleted || {};
+  // 墓標は両方の分を全部引き継ぐ（両端末の配列から消えた項目の墓標を落とすと、古い端末から生き返る）
   const deleted = {};
+  for (const src of [mdel, rdel]) for (const k of Object.keys(src)) if (typeof src[k] === 'number') deleted[k] = Math.max(deleted[k] || 0, src[k]);
   for (const col of COLS) {
     const mine = new Map((S[col] || []).filter(x => x && x.id).map(x => [x.id, x]));
     const theirs = new Map((R[col] || []).filter(x => x && x.id).map(x => [x.id, x]));
@@ -561,6 +563,7 @@ function mergeRemote(R){
       const wt = Math.max(mt, tt, 0);
       const del = Math.max(mdel[k] || 0, rdel[k] || 0);
       if (del && del >= wt) { deleted[k] = del; continue; }
+      delete deleted[k];
       out.push(win);
     }
     // 自分の並び順を保ち、相手にしかないものを先頭に
