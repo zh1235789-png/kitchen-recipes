@@ -85,3 +85,10 @@ test('v3からの移行では、自分で書いた栄養メモの塩分を初期
   assert.equal(a.$('S.recipes[0].pfc.salt'), 9.9);
   assert.equal(a.$('S.recipes[0].pfc.fib'), 8.3);
 });
+test('PFCが無い初期レシピに塩分だけのメモがあっても、初期のkcal・PFCは消えない（Codex指摘）', () => {
+  const v3 = { v: 3, foods: [], shop: [], deleted: {}, recipes: [
+    { id: 'seed-sal2', title: '焼き', nutrition: '塩分9.9g', ingredients: [], steps: [], tags: [], cooked: [], updated: 1 },
+  ] };
+  const a = app({ 'kitchen.v1': JSON.stringify(v3) });
+  assert.deepEqual(norm(a.$('S.recipes[0].pfc')), { per: '1食（おかずだけ）', kcal: 230, p: 29, f: 9, c: 12, fib: 8.3, salt: 9.9 });
+});
