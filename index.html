@@ -90,6 +90,11 @@ label{display:block;font-size:12px;color:var(--sub);margin-bottom:5px;font-weigh
 .pfcbox.two{grid-template-columns:1fr 1fr;margin-top:6px}
 .pfcbox .fib b,.pf.fib b{color:var(--ok)}
 .pfcbox .salt b,.pf.salt b{color:var(--warn)}
+.gwrap{display:inline-flex;align-items:center;gap:3px;color:var(--sub)}
+.gin,.yin{width:64px !important;padding:6px 6px !important;text-align:right;font-size:16px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text)}
+.yin{width:54px !important}
+.usek{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--sub);margin-top:3px;justify-content:flex-end;font-weight:600}
+.usek input{width:18px;height:18px}
 .rc .miss{font-size:12.5px;margin-top:6px;line-height:1.5}
 .can{color:var(--ok);font-weight:700}
 .need{color:var(--warn)}
@@ -149,7 +154,7 @@ ol.steps li{margin-bottom:8px}
   <button data-tab="settings" class="tab-btn"><span class="ic">⚙️</span>設定</button>
 </nav>
 <script>
-const APP_VERSION = '2026-11-25.8';
+const APP_VERSION = '2026-11-25.9';
 const KEY = 'kitchen.v1';
 const PLACES = ['冷蔵', '冷凍', '常温', '調味料'];
 const STATUS = { have: 'あり', low: '少ない', out: 'なし' };
@@ -173,8 +178,8 @@ function norm(name){
   s = s.replace(/生姜/g, 'しょうが').replace(/大蒜|にんにく/g, 'にんにく').replace(/胸/g, 'むね')
        .replace(/鯖/g, 'さば').replace(/鮭/g, 'さけ').replace(/醤油/g, 'しょうゆ').replace(/玉子/g, '卵')
        .replace(/人参/g, 'にんじん').replace(/舞茸/g, 'まいたけ').replace(/葱/g, 'ねぎ').replace(/胡椒/g, 'こしょう').replace(/味醂/g, 'みりん');
-  s = s.replace(/^(冷凍|乾燥|すりおろし|おろし|かっと|むき|ささがき|どらいぱっく|市販の|生)/, '');
-  s = s.replace(/^(冷凍|かっと|むき)/, '');
+  // 「冷凍ささがきごぼう」「冷凍むきえび」のように前置きが重なるので、変わらなくなるまで外す
+  for (let i = 0; i < 4; i++) { const t = s.replace(/^(冷凍|乾燥|すりおろし|おろし|かっと|むき|ささがき|どらいぱっく|市販の|生(?!姜))/, ''); if (t === s || !t) break; s = t; }
   s = s.replace(/(ちゅーぶ|すりおろし)$/, '');
   s = s.replace(/^すり(ごま)/, '$1');
   return s;
@@ -327,31 +332,168 @@ function I(spec){ // "名前|量" / 先頭 ? は好みで
   const [name, amount = ''] = spec.replace(/^\?/, '').split('|');
   return { name: name.trim(), amount: amount.trim(), optional };
 }
-// 初期レシピのPFC [kcal, P, F, C, 何あたり]。ノートに値があるものはその値、無いものは食品成分表の値からの概算
-const SEED_PFC = {
-  chk1: [285, 58, 5, 2, '1枚分'], chk2: [315, 59, 5, 10, '1枚分'], chk3: [310, 58, 5, 5, '1食'], chk4: [190, 31, 2, 12, '1食'], chk5: [296, 58, 5, 5, '1食'], chk6: [285, 58, 5, 2, '1枚分'],
-  ebi1: [150, 28, 1, 2, '1食'], ebi2: [150, 29, 0, 4, '1食'], ebi3: [155, 30, 1, 10, '1食'], ebi4: [130, 20, 0, 10, '1食'], ebi5: [165, 29, 2, 6, '1食'],
-  zur1: [140, 19, 2, 8, '1食（3等分）'], zur2: [107, 19, 2, 4, '1食'], zur3: [155, 28, 3, 2, '1食'], zur4: [145, 28, 3, 2, '1食'], zur5: [175, 21, 2, 16, '1食'], zur6: [85, 16, 2, 1, '1食（4等分）'],
-  faiga: [770, 58, 26, 74, '1食（納豆込み）'], c4m1: [716, 54, 21, 71, '1食'], c4m2: [669, 59, 20, 63, '1食'], c4m3: [564, 58, 12, 56, '1食'], c4m4: [613, 53, 13, 64, '1食'], c4m5: [548, 48, 11, 62, '1食'],
-  pasta: [647, 45, 23, 63, '1食'], soup: [511, 48, 29, 7, '1食（①赤味噌）'], soboro: [550, 44, 8, 72, '1食'],
-  sal1: [220, 28, 5, 17, '1食（おかずだけ）'], sal2: [230, 29, 9, 12, '1食（おかずだけ）'], sal3: [210, 28, 6, 10, '1食（おかずだけ）'],
-  veg1: [100, 3, 7, 7, '1人分'], veg2: [245, 17, 17, 5, '1人分（豚こま込み）'], veg3: [35, 2, 1, 5, '1人分'],
-  salad1: [265, 8, 19, 16, '1食（量は目安）'], salad2: [533, 45, 35, 12, '1食'],
-};
-// 初期レシピの [食物繊維g, 塩分g]（SEED_PFC と同じ「何あたり」）。ノート・会話に値があるものはその値、無いものは成分表からの概算
-const SEED_FS = {
-  chk1: [0, 3.0], chk2: [1.3, 5.6], chk3: [0, 1.8], chk4: [2.0, 2.6], chk5: [0.7, 2.0], chk6: [0, 2.5],
-  ebi1: [0, 1.0], ebi2: [0, 2.4], ebi3: [7.7, 2.1], ebi4: [1.8, 1.8], ebi5: [0.4, 1.9],
-  zur1: [0, 1.7], zur2: [0.6, 2.0], zur3: [0, 2.1], zur4: [0, 2.4], zur5: [3.5, 2.6], zur6: [0, 1.5],
-  faiga: [15, 3.8], c4m1: [8.0, 3.2], c4m2: [5.8, 1.5], c4m3: [3.8, 1.8], c4m4: [4.7, 0.8], c4m5: [6.4, 2.9],
-  pasta: [6, 1.1], soup: [5.1, 2.3], soboro: [2.5, 1.9],
-  sal1: [6.6, 1.5], sal2: [8.3, 0.6], sal3: [7.4, 1.7],
-  veg1: [4.3, 0.3], veg2: [2.0, 0.9], veg3: [1.4, 1.2],
-  salad1: [7.1, 0.5], salad2: [9.5, 0.5],
-};
-function seedPfc(id){
-  const k = String(id).replace(/^seed-/, ''), v = SEED_PFC[k], fs = SEED_FS[k];
-  return v ? { kcal: v[0], p: v[1], f: v[2], c: v[3], fib: fs ? fs[0] : null, salt: fs ? fs[1] : null, per: v[4] } : null;
+// ---------- 材料からの栄養計算 ----------
+// 100gあたり [kcal, P, F, C(炭水化物), 食物繊維, 塩分]。日本食品標準成分表(八訂)の値を丸めたもの。
+// ※の付いた食品は市販品の表示からの目安。u は1個・1枚などの重さ(g)、t/s は大さじ・小さじ1杯の重さ(g)
+const NUTR = [
+  ['鶏むね肉,鶏むね,鶏胸肉,サラダチキン', 105, 23.3, 1.9, 0.1, 0, 0.1, { u: { 枚: 250 } }],
+  ['砂肝', 86, 18.3, 1.8, 0, 0, 0.2, { u: { パック: 200 } }],
+  ['えび,むきえび,海老', 77, 18.4, 0.3, 0.3, 0, 0.6],
+  ['鮭,生鮭,秋鮭', 124, 22.3, 4.1, 0.1, 0, 0.2, { u: { 切れ: 100 } }],
+  ['銀鮭', 188, 19.6, 12.8, 0.3, 0, 0.1, { u: { 切れ: 80 } }],
+  ['さば水煮缶,鯖水煮缶', 174, 20.9, 10.7, 0.2, 0, 0.9, { u: { 缶: 190 } }],
+  ['さば缶味噌,さば味噌缶', 210, 16.3, 13.9, 6.6, 0, 1.1, { u: { 缶: 150 } }],
+  ['ツナ缶,ツナ', 70, 16.0, 0.7, 0.2, 0, 0.5, { u: { 缶: 70 } }],
+  ['明太子,辛子明太子', 121, 21.0, 3.3, 3.0, 0, 5.6, { u: { 腹: 60 } }],
+  ['卵,生卵,ゆで卵', 142, 12.2, 10.2, 0.4, 0, 0.4, { u: { 個: 50 } }],
+  ['卵白', 44, 10.1, 0, 0.5, 0, 0.5, { u: { 個: 33 } }],
+  ['豚こま,豚肉', 230, 17.5, 17.0, 0.2, 0, 0.1],
+  ['納豆', 184, 16.5, 10.0, 12.1, 6.7, 0, { u: { パック: 45 } }],
+  ['米,白米', 342, 6.1, 0.9, 77.6, 0.5, 0, { u: { 合: 150 } }],
+  ['もち麦,押麦', 343, 7.0, 2.1, 77.1, 12.9, 0],
+  ['麦ご飯,麦ごはん', 150, 2.5, 0.5, 34.0, 1.5, 0],
+  ['高タンパクパスタ', 350, 20.3, 1.8, 62.0, 4.0, 0], // ※
+  ['大根', 15, 0.4, 0.1, 4.1, 1.3, 0, { u: { 本: 1000 } }],
+  ['キャベツ', 21, 1.3, 0.2, 5.2, 1.8, 0, { u: { 枚: 50 } }],
+  ['ブロッコリー', 37, 5.4, 0.6, 6.6, 5.1, 0.1, { u: { 株: 250 } }],
+  ['ほうれん草', 18, 2.2, 0.4, 3.1, 2.8, 0, { u: { 束: 200, 株: 30 } }],
+  ['小松菜', 13, 1.5, 0.2, 2.4, 1.9, 0, { u: { 束: 200, 株: 40 } }],
+  ['にんじん', 35, 0.7, 0.2, 9.3, 2.4, 0.1, { u: { 本: 150 } }],
+  ['ごぼう', 58, 1.8, 0.1, 15.4, 5.7, 0, { u: { 本: 180 } }],
+  ['長ねぎ', 35, 1.4, 0.1, 8.3, 2.5, 0, { u: { 本: 100 } }],
+  ['小ねぎ,万能ねぎ', 26, 2.0, 0.3, 5.4, 2.5, 0],
+  ['玉ねぎ', 33, 1.0, 0.1, 8.4, 1.5, 0, { u: { 個: 200 } }],
+  ['トマト', 20, 0.7, 0.1, 4.7, 1.0, 0, { u: { 個: 150 } }],
+  ['トマト缶', 21, 0.9, 0.1, 4.4, 1.3, 0, { u: { 缶: 400 } }],
+  ['パプリカ', 28, 1.0, 0.2, 7.2, 1.6, 0, { u: { 個: 150 } }],
+  ['オクラ', 26, 2.1, 0.2, 6.6, 5.0, 0, { u: { 本: 10 } }],
+  ['しめじ', 22, 2.7, 0.5, 4.8, 3.0, 0, { u: { パック: 100 } }],
+  ['まいたけ,舞茸', 22, 2.0, 0.5, 4.4, 3.5, 0, { u: { パック: 100 } }],
+  ['エリンギ', 31, 2.8, 0.4, 6.0, 3.4, 0, { u: { 本: 50 } }],
+  ['えのき', 34, 2.7, 0.2, 7.6, 3.9, 0, { u: { 袋: 100 } }],
+  ['ズッキーニ', 16, 1.3, 0.1, 2.8, 1.3, 0, { u: { 本: 200 } }],
+  ['レタス', 11, 0.6, 0.1, 2.8, 1.1, 0, { u: { 枚: 30 } }],
+  ['ベビーリーフ', 20, 2.0, 0.3, 3.0, 2.0, 0, { u: { 袋: 40 } }], // ※
+  ['アボカド', 178, 2.1, 17.5, 7.9, 5.6, 0, { u: { 個: 140 } }],
+  ['枝豆', 125, 11.7, 6.2, 8.8, 5.0, 0],
+  ['ブロッコリースーパースプラウト,スプラウト', 19, 1.9, 0.5, 2.6, 1.8, 0, { u: { パック: 50 } }],
+  ['わかめ,カットわかめ', 186, 17.9, 4.0, 42.1, 39.2, 23.5], // 乾燥
+  ['韓国のり,味付けのり', 301, 40.0, 3.5, 41.8, 25.2, 4.3, { u: { 枚: 0.3 } }],
+  ['鰹節,かつお節', 332, 75.7, 3.2, 0.8, 0, 0.3, { u: { 袋: 2 } }],
+  ['キムチ', 27, 2.3, 0.1, 5.2, 2.2, 2.9],
+  ['ごま,白ごま,いりごま', 605, 20.3, 54.2, 18.5, 12.6, 0, { t: 9, s: 3 }],
+  ['アーモンド', 609, 19.6, 51.8, 20.9, 10.1, 0],
+  ['かぼちゃの種', 590, 26.5, 51.8, 12.0, 7.3, 0],
+  ['ごま油', 890, 0, 100, 0, 0, 0, { t: 12, s: 4 }],
+  ['オリーブオイル', 894, 0, 100, 0, 0, 0, { t: 12, s: 4 }],
+  ['アマニオイル,亜麻仁油', 897, 0, 99.5, 0, 0, 0, { t: 12, s: 4 }],
+  ['油,サラダ油', 886, 0, 100, 0, 0, 0, { t: 12, s: 4 }],
+  ['バター', 700, 0.6, 81.0, 0.2, 0, 1.9, { t: 12, s: 4 }],
+  ['醤油', 77, 7.7, 0, 7.9, 0, 14.5, { t: 18, s: 6 }],
+  ['みりん', 241, 0.3, 0, 43.2, 0, 0, { t: 18, s: 6 }],
+  ['料理酒,酒,清酒', 107, 0.4, 0, 4.9, 0, 0, { t: 15, s: 5 }],
+  ['砂糖', 391, 0, 0, 99.3, 0, 0, { t: 9, s: 3, pinch: 1 }],
+  ['塩,塩こしょう,塩・こしょう', 0, 0, 0, 0, 0, 99.5, { t: 18, s: 6, pinch: 1, dash: 0.5 }],
+  ['味噌', 182, 12.5, 6.0, 21.9, 4.9, 12.4, { t: 18, s: 6 }],
+  ['赤味噌', 178, 13.1, 5.5, 21.1, 4.1, 13.0, { t: 18, s: 6 }],
+  ['塩麹', 150, 2.0, 0.3, 32.0, 1.0, 13.0, { t: 16, s: 5 }], // ※
+  ['ポン酢,ぽん酢', 61, 3.4, 0, 10.5, 0.3, 7.8, { t: 17, s: 6 }],
+  ['白だし', 80, 2.0, 0, 15.0, 0, 12.0, { t: 18, s: 6 }], // ※
+  ['オイスターソース', 105, 7.7, 0.3, 18.3, 0.2, 11.4, { t: 18, s: 6 }],
+  ['鶏ガラスープの素,鶏がらスープの素', 210, 10.0, 1.6, 36.6, 0, 47.5, { t: 9, s: 3 }],
+  ['コンソメ', 235, 7.0, 4.3, 42.1, 0.3, 43.2, { t: 9, s: 3, u: { 個: 5 } }],
+  ['ほんだし,顆粒だし', 223, 24.2, 0.3, 31.1, 0, 40.6, { t: 9, s: 3 }],
+  ['豆板醤', 49, 2.0, 2.3, 7.9, 4.3, 17.8, { t: 18, s: 6 }],
+  ['コチュジャン', 205, 3.4, 1.8, 44.0, 1.0, 7.3, { t: 19, s: 7 }],
+  ['トムヤムペースト', 250, 5.0, 15.0, 25.0, 2.0, 15.0, { t: 18, s: 6 }], // ※
+  ['カレー粉', 338, 13.0, 12.2, 63.3, 36.9, 0.1, { t: 6, s: 2 }],
+  ['片栗粉', 330, 0.1, 0.1, 81.6, 0, 0, { t: 9, s: 3 }],
+  ['レモン汁,レモン', 24, 0.4, 0.2, 8.6, 0, 0, { t: 15, s: 5 }],
+  ['酢', 25, 0.1, 0, 2.4, 0, 0, { t: 15, s: 5 }],
+  ['柚子胡椒', 40, 1.0, 1.0, 6.0, 3.0, 25.0, { t: 15, s: 5 }], // ※
+  ['にんにく,ニンニク', 140, 5.0, 1.0, 30.0, 4.0, 1.0, { s: 5, u: { 片: 5 } }],
+  ['しょうが,生姜', 40, 0.9, 0.5, 8.0, 2.0, 1.0, { s: 5, u: { 片: 10 } }],
+  ['だし,和風だし,和風だしパック', 2, 0.3, 0, 0.3, 0, 0.1, { u: { 個: 0, パック: 0, 袋: 0 } }],
+  ['水,お湯,湯,氷', 0, 0, 0, 0, 0, 0],
+  ['こしょう,七味,わさび,一味', 0, 0, 0, 0, 0, 0],
+].map(([names, kcal, p, f, c, fib, salt, o]) => Object.assign({ names: names.split(','), kcal, p, f, c, fib, salt }, o || {}));
+const NUTR_KEYS = []; // [norm名, 食品]
+for (const e of NUTR) for (const n of e.names) NUTR_KEYS.push([norm(n), e]);
+function nutrFood(name){
+  const n = norm(name);
+  if (!n) return null;
+  const exact = NUTR_KEYS.find(([k]) => k === n);
+  if (exact) return exact[1];
+  let best = null, bd = 99;
+  for (const [k, e] of NUTR_KEYS) if (nameMatch(n, k)) { const d = Math.abs(k.length - n.length); if (d < bd) { bd = d; best = e; } }
+  return best;
+}
+function toHalfNum(s){ return String(s || '').replace(/[０-９．／]/g, ch => ch === '／' ? '/' : String.fromCharCode(ch.charCodeAt(0) - 0xFEE0)); }
+function numOf(x){
+  if (x == null || x === '') return 1;
+  if (x === '半') return 0.5;
+  if (x.includes('/')) { const [a, b] = x.split('/').map(Number); return b ? a / b : NaN; }
+  return parseFloat(x);
+}
+// 「1枚（約250g）」「大さじ1強」「1/2本」「300〜400g」「少々」→ g。量が決まらないものは null
+function amountToGrams(amount, e){
+  const a = toHalfNum(amount);
+  if (!a.trim()) return null;
+  let m = a.match(/(\d+(?:\.\d+)?)\s*[〜~～\-]\s*(\d+(?:\.\d+)?)\s*(?:g|ｇ|グラム)/);
+  if (m) return (parseFloat(m[1]) + parseFloat(m[2])) / 2;
+  m = a.match(/(\d+(?:\.\d+)?)\s*(?:g|ｇ|グラム)(?![a-z])/i);
+  if (m) return parseFloat(m[1]);
+  m = a.match(/(\d+(?:\.\d+)?)\s*(?:ml|cc|ｍｌ|ｃｃ|ミリ)/i);
+  if (m) return parseFloat(m[1]) * ((e && e.dens) || 1);
+  m = a.match(/(大さじ|小さじ)\s*(\d+(?:\.\d+)?(?:\/\d+)?|半)?\s*(強|弱)?/);
+  if (m) {
+    const per = m[1] === '大さじ' ? ((e && e.t) || 15) : ((e && e.s) || (e && e.t ? e.t / 3 : 5));
+    return numOf(m[2]) * per * (m[3] === '強' ? 1.1 : m[3] === '弱' ? 0.9 : 1);
+  }
+  m = a.match(/(\d+(?:\.\d+)?(?:\/\d+)?|半)\s*(個|枚|本|切れ|束|株|缶|パック|腹|片|袋|玉|房|合)/);
+  if (m) { const w = e && e.u && e.u[m[2]]; return w == null ? null : numOf(m[1]) * w; }
+  m = a.match(/(\d+(?:\.\d+)?)\s*cm/);
+  if (m) return parseFloat(m[1]) * 0.5;
+  if (/ひとつまみ/.test(a)) return (e && e.pinch) || 0.5;
+  if (/少々|少量/.test(a)) return (e && e.dash) || 0.3;
+  return null;
+}
+function parseYield(serv){
+  const m = toHalfNum(serv).match(/(\d+(?:\.\d+)?)\s*(?:[〜~～]\s*\d+\s*)?(?:食|人)分/);
+  return m ? parseFloat(m[1]) : 1;
+}
+function recipeYield(r){ const y = Number(r.yield); return y > 0 ? y : parseYield(r.servings); }
+// 材料ごとに計算した結果。rows[i] は ingredients[i] に対応
+function computeRecipe(r){
+  const sum = { kcal: 0, p: 0, f: 0, c: 0, fib: 0, salt: 0 };
+  const rows = [], skipped = [];
+  let counted = 0;
+  for (const ing of (r.ingredients || [])) {
+    const used = ing.optional ? ing.use === true : ing.use !== false;
+    const e = nutrFood(ing.name);
+    const g = e ? amountToGrams(ing.amount, e) : null;
+    rows.push({ ing, used, e, g });
+    if (!used) continue;
+    if (!e) { skipped.push(ing.name + '（成分表にない）'); continue; }
+    if (g == null) { skipped.push(ing.name + (ing.amount ? '（' + ing.amount + '）' : '（量なし）')); continue; }
+    for (const k of Object.keys(sum)) sum[k] += e[k] * g / 100;
+    counted++;
+  }
+  const y = recipeYield(r);
+  const r1 = x => Math.round(x / y), r10 = x => Math.round(x / y * 10) / 10;
+  const per = y === 1 ? (parseYield(r.servings) > 1 ? '全量（' + r.servings + '）' : (r.servings || '1食')) : '1食（' + (r.servings ? r.servings + 'を' : '全量を') + y + '等分）';
+  const pfc = { kcal: r1(sum.kcal), p: r1(sum.p), f: r1(sum.f), c: r1(sum.c), fib: r10(sum.fib), salt: r10(sum.salt), per, auto: true };
+  return { pfc, rows, skipped, counted, yield: y };
+}
+// 一覧・並べ替えで使う値。自動計算のレシピはその場で計算する
+function recipePfc(r){ return r.pfcAuto ? computeRecipe(r).pfc : (r.pfc || null); }
+// 材料のgを直す。量の文の「1枚」「大さじ1」などは g に置き換え、（一口大）のような注記は残す
+function setIngGrams(r, i, g){
+  const ing = (r.ingredients || [])[i]; if (!ing) return;
+  g = Math.max(0, Math.round(Number(g) * 10) / 10);
+  if (!isFinite(g)) return;
+  const notes = (String(ing.amount || '').match(/[（(][^）)]*[）)]/g) || []).filter(x => !/\d\s*(g|ｇ)/.test(x)).join('');
+  ing.amount = g + 'g' + notes;
 }
 // 「約220kcal／P 28g／F 5g」のような文から数字を拾う
 function parsePfc(text){
@@ -369,7 +511,7 @@ function R(title, o){
     id: 'seed-' + o.id, title, tool: o.tool || '', servings: o.serv || '', nutrition: o.nut || '',
     ingredients: (o.ing || []).map(I), steps: o.steps || [], notes: o.notes || '', source: o.src || '',
     fav: false, cooked: [], created: '2026-11-25', updated: Date.parse('2026-11-25T00:00:00+09:00'),
-    pfc: seedPfc(o.id),
+    pfcAuto: true, yield: parseYield(o.serv || ''),
   };
   r.tags = (o.tags || []).concat(autoTags(r).filter(t => !(o.tags || []).includes(t)));
   return r;
@@ -400,13 +542,13 @@ function seedRecipes(){ return [
     ing: ['冷凍むきえび|150g', '料理酒|大さじ2', '塩|少々', 'おろししょうが|1cm', '?ポン酢|適量'],
     steps: ['えびは流水で軽く解凍し、水気を拭く', '耐熱容器にえび・酒・塩・生姜を入れて混ぜ、ラップ', '600Wで2分30秒（ピンクになればOK、加熱しすぎ注意）', 'ポン酢やレモン汁をかける'] }),
   R('えびと卵白のふわふわ蒸し', { id: 'ebi2', tool: '電子レンジ', serv: '1食分', src: SRC_HP,
-    ing: ['冷凍むきえび|120g', '卵|2個（卵白だけ使う）', '塩|小さじ1/3', '料理酒|大さじ1', '片栗粉|小さじ1'],
+    ing: ['冷凍むきえび|120g', '卵白|2個分', '塩|小さじ1/3', '料理酒|大さじ1', '片栗粉|小さじ1'],
     steps: ['えびを粗みじん切りにし、卵白と全材料を混ぜる', '耐熱容器に流し入れてラップ', '600Wで2分 → 混ぜて → さらに1分30秒'] }),
   R('えびとブロッコリーの中華蒸し', { id: 'ebi3', tool: '電子レンジ', serv: '1食分', src: SRC_HP,
     ing: ['冷凍むきえび|120g', '冷凍ブロッコリー|150g', '鶏ガラスープの素|小さじ1', '塩|少々', '水|大さじ1'],
     steps: ['耐熱容器にブロッコリーとえびを入れる', '鶏ガラスープの素・塩・水を回しかける', 'ラップして600Wで3分30秒', '取り出して混ぜる'] }),
   R('えびとトマトのスープ煮', { id: 'ebi4', tool: 'Cook4me', serv: '2食分', src: SRC_HP,
-    ing: ['冷凍むきえび|200g', 'トマト缶|1缶（400g）', 'コンソメ|1個', 'おろしにんにく|2cm', '水|100ml', '塩こしょう|適量'],
+    ing: ['冷凍むきえび|200g', 'トマト缶|1缶（400g）', 'コンソメ|1個', 'おろしにんにく|2cm', '水|100ml', '塩こしょう|少々'],
     steps: ['Cook4meにトマト缶・コンソメ・にんにく・水を入れる', '高圧で5分', '圧力が抜けたら冷凍えびを入れ、蓋をせず「加熱」で2〜3分', '塩こしょうで味を整える'] }),
   R('えびの韓国風ピリ辛和え', { id: 'ebi5', tool: '電子レンジ', serv: '1食分', src: SRC_HP,
     ing: ['冷凍むきえび|150g（茹で済み）', 'コチュジャン|小さじ1', '醤油|小さじ1', '酢|小さじ1', 'すりごま|小さじ1', '砂糖|ひとつまみ', '?レタス|適量'],
@@ -434,36 +576,36 @@ function seedRecipes(){ return [
     steps: ['銀皮（白い硬い部分）を取り除く', '鍋に砂肝・水・調味料を入れる', 'マニュアル → 圧力調理で10〜15分'],
     notes: 'まとめて下茹でしておけば、炒め・スープ・ポン酢蒸しなどに5〜10分で展開できる。冷蔵3〜4日' }),
   R('鶏むねの低温調理（63℃）', { id: 'chk6', tool: 'Cook4me', serv: '1枚分', src: 'Obsidian: Cook4me_低温調理_砂肝レシピ',
-    ing: ['鶏むね肉|1枚', '塩|適量', '料理酒|少々', '砂糖|少々'],
+    ing: ['鶏むね肉|1枚', '塩|小さじ1/2', '料理酒|大さじ1', '砂糖|ひとつまみ'],
     steps: ['塩・酒・砂糖を揉み込み30分冷蔵 → ジップロックで空気を抜く', 'マニュアル調理 → 保温（63℃）で予熱', '袋を入れて蓋をし60分'] }),
   R('ファイガ 完全食版', { id: 'faiga', tool: 'Cook4me', serv: '2食分', src: 'Obsidian: Cook4me_ファイガ_完全食版（元はリュウジ）',
     nut: '1食（半量＋納豆）約770kcal／P58 F26 C74／食物繊維 約15g',
-    ing: ['米|100g', 'もち麦|50g', '水|550cc', 'ほんだし|小さじ1', '豆板醤|小さじ1.5', 'ごま油|小さじ2', '鶏むね肉|200g（一口大）', 'さば水煮缶|190g（汁ごと）', '小松菜|100g', '冷凍オクラ|150g', 'にんじん|50g（細切り）', '舞茸|100g', 'にんにく|15g', 'すりごま|大さじ2', 'キムチ|150g（一番上）', '?納豆|1パック（別皿）'],
+    ing: ['米|100g', 'もち麦|50g', '水|550cc', 'ほんだし|小さじ1', '豆板醤|小さじ1.5', 'ごま油|小さじ2', '鶏むね肉|200g（一口大）', 'さば水煮缶|190g（汁ごと）', '小松菜|100g', '冷凍オクラ|150g', 'にんじん|50g（細切り）', '舞茸|100g', 'にんにく|15g', 'すりごま|大さじ2', 'キムチ|150g（一番上）', '納豆|1パック（別皿で）'],
     steps: ['底に米・もち麦・水・ほんだし・豆板醤・ごま油を入れて軽く混ぜる', '上に鶏むね・鯖缶（汁ごと）・小松菜・オクラ・にんじん・舞茸・にんにく・すりごまを重ね、キムチを一番上に（混ぜない）', 'マニュアル → 圧力調理6分 → 自然放置10分', '底から混ぜる。納豆は別皿で'],
     notes: '急速排気しない（粥が噴き出す）。ごま油は消泡も兼ねるので省かない。穀物は合計1合相当まで' }),
   R('さば味噌キムチ雑炊', { id: 'c4m1', tool: 'Cook4me', serv: '2食分', src: SRC_LIST,
     nut: '1食 716kcal／P54 F21 C71', tags: ['トレ日'],
-    ing: ['米|100g', 'もち麦|50g', '水|550cc', 'おろしにんにく|小さじ1', 'おろししょうが|小さじ1', '冷凍鶏胸肉|300g（一口大）', '冷凍ブロッコリー|100g', 'すりごま|大さじ1', 'さば缶味噌|1缶（汁ごと）', 'キムチ|150g（一番上）', '?アマニオイル|小さじ1'],
+    ing: ['米|100g', 'もち麦|50g', '水|550cc', 'おろしにんにく|小さじ1', 'おろししょうが|小さじ1', '冷凍鶏胸肉|300g（一口大）', '冷凍ブロッコリー|100g', 'すりごま|大さじ1', 'さば缶味噌|1缶（汁ごと）', 'キムチ|150g（一番上）', 'アマニオイル|小さじ1（器で）'],
     steps: ['底：米・もち麦・水・にんにく・しょうが', '上に重ねる：鶏胸・ブロッコリー・すりごま・さば味噌缶・キムチ（一番上、混ぜない）', '加圧6分 → 自然放置10分', 'アマニオイルは器に盛ってから'],
     notes: 'さば味噌缶は底に沈むと焦げるのでキムチと並べて最上層に。塩分高めなので連日にしない' }),
   R('銀鮭のトムヤム麦粥', { id: 'c4m2', tool: 'Cook4me', serv: '2食分', src: SRC_LIST,
     nut: '1食 669kcal／P59 F20 C63', tags: ['トレ日'],
-    ing: ['米|100g', 'もち麦|50g', '水|600cc', 'トムヤムペースト|大さじ1.5', 'おろしにんにく|小さじ1', '冷凍鶏胸肉|300g', '冷凍銀鮭|2切れ（160g）', '冷凍ブロッコリー|100g', 'レモン汁|たっぷり', '?アマニオイル|小さじ1'],
+    ing: ['米|100g', 'もち麦|50g', '水|600cc', 'トムヤムペースト|大さじ1.5', 'おろしにんにく|小さじ1', '冷凍鶏胸肉|300g', '冷凍銀鮭|2切れ（160g）', '冷凍ブロッコリー|100g', 'レモン汁|大さじ1（たっぷり）', 'アマニオイル|小さじ1（器で）'],
     steps: ['底：米・もち麦・水・トムヤムペースト・にんにく', '上に重ねる：鶏胸・銀鮭・ブロッコリー', '加圧6分 → 自然放置10分', 'レモン汁とアマニオイルは器で'],
     notes: 'Pを下げるなら銀鮭1切れ → 588kcal／P50。鮭の骨も柔らかくなる' }),
   R('砂肝と鶏胸の塩麹サムゲタン風', { id: 'c4m3', tool: 'Cook4me', serv: '2食分', src: SRC_LIST,
     nut: '1食 564kcal／P58 F12 C56', tags: ['オフ日'],
-    ing: ['米|80g', 'もち麦|50g', '水|700cc', '塩麹|大さじ2', 'おろししょうが|小さじ2', 'おろしにんにく|小さじ1', '冷凍鶏胸肉|300g', '冷凍砂肝|200g', 'すりごま|大さじ1', '?韓国のり|適量', '?柚子胡椒|適量', '?アマニオイル|小さじ1'],
+    ing: ['米|80g', 'もち麦|50g', '水|700cc', '塩麹|大さじ2', 'おろししょうが|小さじ2', 'おろしにんにく|小さじ1', '冷凍鶏胸肉|300g', '冷凍砂肝|200g', 'すりごま|大さじ1', '?韓国のり|適量', '?柚子胡椒|適量', 'アマニオイル|小さじ1（器で）'],
     steps: ['底：米・もち麦・水・塩麹・しょうが・にんにく', '上に重ねる：鶏胸・砂肝・すりごま', '加圧10分 → 自然放置10分（米は崩れてスープ状でOK）', '韓国のり・柚子胡椒・アマニオイルを器で'],
     notes: 'Pを下げるなら砂肝100g → 520kcal／P49' }),
   R('ツナとトマトのもち麦リゾット', { id: 'c4m4', tool: 'Cook4me', serv: '2食分', src: SRC_LIST,
     nut: '1食 613kcal／P53 F13 C64（ツナ水煮で計算）', tags: ['オフ日'],
-    ing: ['米|100g', 'もち麦|50g', '水|400cc', 'おろしにんにく|小さじ1', 'オイスターソース|小さじ1', 'バター|5g', '冷凍鶏胸肉|300g（一口大）', 'ツナ缶|2缶（汁ごと）', 'すりごま|大さじ1', 'トマト缶|200g（一番上）', '?アマニオイル|小さじ1'],
+    ing: ['米|100g', 'もち麦|50g', '水|400cc', 'おろしにんにく|小さじ1', 'オイスターソース|小さじ1', 'バター|5g', '冷凍鶏胸肉|300g（一口大）', 'ツナ缶|2缶（汁ごと）', 'すりごま|大さじ1', 'トマト缶|200g（一番上）', 'アマニオイル|小さじ1（器で）'],
     steps: ['底：米・もち麦・水・にんにく・オイスターソース・バター', '上に重ねる：鶏胸・ツナ缶・すりごま・トマト缶（一番上）', '加圧6分 → 自然放置10分'],
     notes: 'トマト缶は最も焦げやすいので必ず最上層。油漬ツナだとF+8g' }),
   R('鶏胸と明太子の和風だし粥', { id: 'c4m5', tool: 'Cook4me', serv: '2食分', src: SRC_LIST,
     nut: '1食 548kcal／P48 F11 C62', tags: ['オフ日'],
-    ing: ['米|100g', 'もち麦|50g', '水|600cc', '和風だしパック|1個', '白だし|大さじ1', '冷凍鶏胸肉|300g（一口大）', '冷凍ブロッコリー|100g', 'すりごま|大さじ1', '冷凍明太子|1腹（60g、一番上）', '?鰹節|適量', '?韓国のり|適量', '?わさび|少々', '?アマニオイル|小さじ1'],
+    ing: ['米|100g', 'もち麦|50g', '水|600cc', '和風だしパック|1個', '白だし|大さじ1', '冷凍鶏胸肉|300g（一口大）', '冷凍ブロッコリー|100g', 'すりごま|大さじ1', '冷凍明太子|1腹（60g、一番上）', '?鰹節|適量', '?韓国のり|適量', '?わさび|少々', 'アマニオイル|小さじ1（器で）'],
     steps: ['底：米・もち麦・水・だしパック（袋のまま）・白だし', '上に重ねる：鶏胸・ブロッコリー・すりごま・明太子（一番上）', '加圧6分 → 自然放置10分、だしパックを取り出す', '鰹節・のり・わさび・アマニオイルを器で'],
     notes: 'いちばん軽い。納豆1パックを足すと P55／638kcal' }),
   R('鮭と納豆の和風パスタ', { id: 'pasta', tool: '', serv: '1食分', src: SRC_LIST,
@@ -476,7 +618,7 @@ function seedRecipes(){ return [
     steps: ['鮭・ブロッコリーを水で煮て、卵を落とす', '味を1つ選んで加える：①赤味噌＋しょうが／②トムヤム＋レモン汁＋にんにく／③塩麹＋柚子胡椒＋白だし／④トマト缶＋バター5g＋にんにく／⑤キムチ＋醤油＋にんにく'] }),
   R('鶏胸そぼろ丼', { id: 'soboro', tool: 'フライパン', serv: '1食分', src: SRC_LIST,
     nut: 'P約44 F約8 C約72／約550kcal',
-    ing: ['冷凍鶏胸肉|150g', '醤油|適量', 'みりん|適量', 'おろししょうが|少々', '卵|1個', '米|麦ご飯200g', '?韓国のり|適量', '?キムチ|適量'],
+    ing: ['冷凍鶏胸肉|150g', '醤油|大さじ1/2', 'みりん|大さじ1/2', 'おろししょうが|少々', '卵|1個', '麦ご飯|200g', '?韓国のり|適量', '?キムチ|30g'],
     steps: ['鶏胸を細かく刻み、醤油・みりん・しょうがでそぼろにする', '卵を炒り卵にする', '麦ご飯にのせ、韓国のり・キムチを添える'] }),
   R('鮭とごぼう・しめじのみそ蒸し', { id: 'sal1', tool: 'シリコンスチーマー', serv: '1食分', src: SRC_SALMON,
     nut: 'おかずだけ 約220kcal／P28 F5／食物繊維6.6g／塩分約1.5g',
@@ -485,7 +627,7 @@ function seedRecipes(){ return [
     notes: '麦ごはんと合わせて 約530kcal／P35／食物繊維10.7g。作り置きは翌日まで' }),
   R('鮭とブロッコリー・オクラのレモンガーリック焼き', { id: 'sal2', tool: 'レンジグリル', serv: '1食分', src: SRC_SALMON,
     nut: 'おかずだけ 約230kcal／P29 F9／食物繊維8.3g／塩分約0.6g',
-    ing: ['冷凍鮭|100g', '冷凍ブロッコリー|80g', 'エリンギ|50g（縦に裂く）', '冷凍オクラ|50g', 'オリーブオイル|小さじ1', 'おろしにんにく|少々', '塩|ひとつまみ', 'こしょう|少々', 'レモン汁|適量'],
+    ing: ['冷凍鮭|100g', '冷凍ブロッコリー|80g', 'エリンギ|50g（縦に裂く）', '冷凍オクラ|50g', 'オリーブオイル|小さじ1', 'おろしにんにく|少々', '塩|ひとつまみ', 'こしょう|少々', 'レモン汁|小さじ1'],
     steps: ['鮭と野菜を並べ、オイルとにんにくを回しかける', 'レンジグリルの説明書にある魚の目安時間で焼く', '仕上げにレモンを絞ってこしょうをふる'],
     notes: '加熱時間は説明書で要確認。3品の中で食物繊維がいちばん多い' }),
   R('鮭と小松菜・まいたけのわかめ蒸し ポン酢がけ', { id: 'sal3', tool: 'シリコンスチーマー', serv: '1食分', src: SRC_SALMON,
@@ -498,19 +640,19 @@ function seedRecipes(){ return [
     steps: ['にんじんは細切り。ほうれん草は茹でて水にとり、よく絞って4cmに切る', 'にんじんはほうれん草を茹でたお湯で1分（レンジ600W1分半でも可）', '調味料を全部合わせて和える'],
     notes: '冷蔵で3日（作り置き向き）。鶏ガラは半分でも物足りなくなりにくい' }),
   R('ほうれん草・にんじん・卵のオイスター炒め', { id: 'veg2', tool: 'フライパン', serv: '2人分', src: 'Claude相談 2026-11-19',
-    ing: ['ほうれん草|1/2束', 'にんじん|1/3本', '卵|2個', '?豚こま|100g', 'オイスターソース|小さじ2', '醤油|小さじ1/2', '油|適量'],
+    ing: ['ほうれん草|1/2束', 'にんじん|1/3本', '卵|2個', '?豚こま|100g', 'オイスターソース|小さじ2', '醤油|小さじ1/2', '油|小さじ1'],
     steps: ['卵を溶いて油で半熟に炒め、いったん取り出す', '豚こまを炒め、短冊切りのにんじんを加えてしんなりするまで炒める', 'ほうれん草の茎、葉の順に入れ、オイスターソースと醤油で味付け', '卵を戻してさっと混ぜる'],
     notes: 'えぐみが気になるときはほうれん草を30秒下茹で' }),
   R('にんじんとほうれん草の味噌汁', { id: 'veg3', tool: '', serv: '2人分', src: 'Claude相談 2026-11-19',
     ing: ['にんじん|1/4本（いちょう切り）', 'ほうれん草|2株', '和風だしパック|だし400ml', '味噌|大さじ1強'],
     steps: ['にんじんをだしで柔らかくなるまで煮る', 'ほうれん草を入れてひと煮立ち', '火を止めて味噌を溶く'] }),
   R('筋トレ最強サラダ（ビタミン・ミネラル特化）', { id: 'salad1', tool: '', serv: '1食分', src: 'Obsidian: 筋トレ最強サラダ',
-    ing: ['小松菜|適量（生）', 'ブロッコリー|適量（軽く茹でる）', 'パプリカ|赤・黄', 'トマト|適量', 'ブロッコリースーパースプラウト|適量（後のせ）', 'アーモンド|適量', 'かぼちゃの種|適量', 'オリーブオイル|適量', 'レモン汁|適量', '塩こしょう|適量'],
+    ing: ['小松菜|50g（生）', 'ブロッコリー|50g（軽く茹でる）', 'パプリカ|50g（赤・黄）', 'トマト|100g', 'ブロッコリースーパースプラウト|20g（後のせ）', 'アーモンド|10g', 'かぼちゃの種|10g', 'オリーブオイル|小さじ2', 'レモン汁|小さじ2', '塩こしょう|少々'],
     steps: ['小松菜をベースに、ブロッコリー・パプリカ・トマトをのせる', 'スプラウト・アーモンド・かぼちゃの種をトッピング', 'オリーブオイル＋レモン汁＋塩胡椒で和える'],
     notes: 'スプラウトは加熱NG。オイルで脂溶性ビタミン、レモンで鉄の吸収UP' }),
   R('高タンパクサラダ（黄金レシピ）', { id: 'salad2', tool: '', serv: '1食分', src: 'Obsidian: 筋トレ最強サラダ',
     nut: 'P40g超も可能',
-    ing: ['鶏むね肉|100g（サラダチキン）', 'ブロッコリー|適量', '卵|2個（ゆで卵）', 'アボカド|1/2個', 'ベビーリーフ|適量', '枝豆|50g', 'オリーブオイル|適量', 'レモン汁|適量', '塩こしょう|適量'],
+    ing: ['鶏むね肉|100g（サラダチキン）', 'ブロッコリー|50g', '卵|2個（ゆで卵）', 'アボカド|1/2個', 'ベビーリーフ|30g', '枝豆|50g', 'オリーブオイル|小さじ2', 'レモン汁|小さじ2', '塩こしょう|少々'],
     steps: ['具材を全部盛り付ける', 'オリーブオイル＋レモン＋塩胡椒をかける'] }),
 ]; }
 // 食材リスト（Obsidian 03.5_Health/栄養・食事/食材リスト.md、2026-09-13時点）
@@ -528,7 +670,7 @@ function seedFoods(){
 }
 // 初期データの id は端末ごとに同じにする（別々の id だと同期で同じ食材が2つになる）
 function seedFoodId(name){ return 'seed-f-' + name; }
-function freshState(){ return { v: 4, foods: seedFoods(), recipes: seedRecipes(), shop: [], deleted: {}, seededAt: todayStr(), seedNotice: true }; }
+function freshState(){ return { v: 5, foods: seedFoods(), recipes: seedRecipes(), shop: [], deleted: {}, seededAt: todayStr(), seedNotice: true }; }
 
 // ---------- 状態 ----------
 let S = null;
@@ -566,7 +708,7 @@ function migrate(){
   }
   // v2→v3: 初期レシピにPFCを入れる（自分で入れた値は触らない）
   if (S.v < 3) {
-    for (const r of S.recipes) if (r && !r.pfc) r.pfc = seedPfc(r.id) || parsePfc(r.nutrition);
+    for (const r of S.recipes) if (r && !r.pfc) r.pfc = parsePfc(r.nutrition);
     S.v = 3;
     lsSet(KEY, JSON.stringify(S));
   }
@@ -575,7 +717,7 @@ function migrate(){
     for (const r of S.recipes) {
       if (!r) continue;
       // 自分で書いた栄養メモの値を初期値より優先する
-      const memo = parsePfc(r.nutrition) || {}, seed = seedPfc(r.id) || {};
+      const memo = parsePfc(r.nutrition) || {}, seed = {};
       const pick = k => memo[k] != null ? memo[k] : (seed[k] != null ? seed[k] : null);
       if (!r.pfc) {
         const keys = ['kcal', 'p', 'f', 'c', 'fib', 'salt'];
@@ -586,6 +728,24 @@ function migrate(){
       if (r.pfc.salt == null) r.pfc.salt = pick('salt');
     }
     S.v = 4;
+    lsSet(KEY, JSON.stringify(S));
+  }
+  // v4→v5: 初期レシピのPFCを材料から計算する形に変える。量が「適量」だったところは初期レシピの新しい量に入れ替える
+  if (S.v < 5) {
+    const seeds = new Map(seedRecipes().map(r => [r.id, r]));
+    for (const r of S.recipes) {
+      const sd = r && seeds.get(r.id);
+      if (!sd) continue;
+      const oldNames = (r.ingredients || []).map(i => norm(i.name));
+      const newNames = sd.ingredients.map(i => norm(i.name));
+      const renamed = { [norm('卵')]: norm('卵白'), [norm('米')]: norm('麦ご飯') };
+      const same = oldNames.length === newNames.length && oldNames.every((n, i) => n === newNames[i] || renamed[n] === newNames[i]);
+      if (same) r.ingredients = sd.ingredients.map((ni, i) => Object.assign({}, ni, r.ingredients[i].use != null ? { use: r.ingredients[i].use } : {}));
+      r.pfcAuto = true;
+      if (!(Number(r.yield) > 0)) r.yield = sd.yield;
+      delete r.pfc;
+    }
+    S.v = 5;
     lsSet(KEY, JSON.stringify(S));
   }
 }
@@ -848,16 +1008,26 @@ function recipeListHtml(){
   let h = '';
   const list = filterRecipes();
   if (!list.length) h += '<div class="empty">該当するレシピがありません</div>';
-  for (const { r, chk } of list) {
+  for (const { r, chk, pf } of list) {
     const m = chk.missing;
     const missTxt = m.length === 0 ? '<span class="can">✅ 今ある食材で作れる</span>' : '<span class="need">足りない: ' + m.map(x => esc(x.ing.name)).join('、') + '</span>';
     const cookedN = (r.cooked || []).length;
     h += '<button class="rc" data-act="open-recipe" data-id="' + r.id + '"><div class="t">' + (r.fav ? '<span class="fav">★</span> ' : '') + esc(r.title) + '</div>'
       + '<div class="tags">' + (r.tags || []).slice(0, 5).map(t => '<span class="tag">' + esc(t) + '</span>').join('') + (cookedN ? '<span class="tag">🍳' + cookedN + '回</span>' : '') + '</div>'
-      + (r.pfc ? '<div class="nut pfcline">' + pfcHtml(r.pfc) + '</div>' : (r.nutrition ? '<div class="nut">' + esc(r.nutrition) + '</div>' : ''))
+      + (pf ? '<div class="nut pfcline">' + pfcHtml(pf) + '</div>' : (r.nutrition ? '<div class="nut">' + esc(r.nutrition) + '</div>' : ''))
       + '<div class="miss">' + missTxt + '</div></button>';
   }
   return h;
+}
+function pfcBoxHtml(r){
+  const cr = r.pfcAuto ? computeRecipe(r) : null;
+  const pf = cr ? cr.pfc : r.pfc;
+  if (!pf) return '';
+  let h = '<div id="pfcArea"><div class="pfcbox">' + [['kcal', 'kcal', pf.kcal], ['p', 'P', pf.p], ['f', 'F', pf.f], ['c', 'C', pf.c]].map(([k, l, v]) => '<div class="' + k + '"><b>' + (v != null ? v : '–') + '</b><span>' + l + (k === 'kcal' ? '' : ' g') + '</span></div>').join('') + '</div>'
+    + '<div class="pfcbox two">' + [['fib', '食物繊維 g', pf.fib], ['salt', '塩分 g', pf.salt]].map(([k, l, v]) => '<div class="' + k + '"><b>' + (v != null ? v : '–') + '</b><span>' + l + '</span></div>').join('') + '</div>'
+    + '<div class="sub" style="margin-top:4px">' + esc(pf.per || '') + ' ・ ' + (cr ? '材料から計算（成分表の値・概算）' : '手入力の値') + '</div>';
+  if (cr && cr.skipped.length) h += '<div class="sub" style="margin-top:2px;color:var(--warn)">計算に入っていない: ' + cr.skipped.map(esc).join('、') + '</div>';
+  return h + '</div>';
 }
 function pfcHtml(x){
   return (x.per ? '<span>' + esc(x.per) + '</span> ' : '') + (x.kcal != null ? '<b>' + x.kcal + '</b>kcal ' : '')
@@ -866,15 +1036,15 @@ function pfcHtml(x){
 }
 function filterRecipes(){
   const q = norm(UI.recQ);
-  let list = S.recipes.map(r => ({ r, chk: recipeCheck(r) }));
+  let list = S.recipes.map(r => ({ r, chk: recipeCheck(r), pf: recipePfc(r) }));
   if (q) list = list.filter(({ r }) => norm(r.title).includes(q) || (r.ingredients || []).some(i => norm(i.name).includes(q) || (q.length >= 2 && nameMatch(i.name, UI.recQ))) || (r.tags || []).some(t => norm(t).includes(q)));
   if (UI.recTag) list = list.filter(({ r }) => (r.tags || []).includes(UI.recTag));
   if (UI.recFilter === 'can') list = list.filter(x => x.chk.missing.length === 0);
   if (UI.recFilter === 'near') list = list.filter(x => x.chk.missing.length >= 1 && x.chk.missing.length <= 2);
   if (UI.recFilter === 'fav') list = list.filter(x => x.r.fav);
-  if (UI.recFilter === 'protein') list = list.filter(x => x.r.pfc && x.r.pfc.p != null).sort((a, b) => b.r.pfc.p - a.r.pfc.p);
-  else if (UI.recFilter === 'fiber') list = list.filter(x => x.r.pfc && x.r.pfc.fib != null).sort((a, b) => b.r.pfc.fib - a.r.pfc.fib);
-  else if (UI.recFilter === 'lowsalt') list = list.filter(x => x.r.pfc && x.r.pfc.salt != null).sort((a, b) => a.r.pfc.salt - b.r.pfc.salt);
+  if (UI.recFilter === 'protein') list = list.filter(x => x.pf && x.pf.p != null).sort((a, b) => b.pf.p - a.pf.p);
+  else if (UI.recFilter === 'fiber') list = list.filter(x => x.pf && x.pf.fib != null).sort((a, b) => b.pf.fib - a.pf.fib);
+  else if (UI.recFilter === 'lowsalt') list = list.filter(x => x.pf && x.pf.salt != null).sort((a, b) => a.pf.salt - b.pf.salt);
   else if (UI.recFilter === 'often') list = list.filter(x => (x.r.cooked || []).length > 0).sort((a, b) => b.r.cooked.length - a.r.cooked.length);
   else list.sort((a, b) => (a.chk.missing.length - b.chk.missing.length) || ((b.r.fav ? 1 : 0) - (a.r.fav ? 1 : 0)) || a.r.title.localeCompare(b.r.title, 'ja'));
   return list;
@@ -936,17 +1106,26 @@ function renderSheet(){
     h += '<div class="card"><div style="font-size:18px;font-weight:700;line-height:1.4">' + esc(r.title) + '</div>';
     const meta = [r.tool, r.servings].filter(Boolean).join(' ・ ');
     if (meta) h += '<div class="sub" style="margin-top:4px">' + esc(meta) + '</div>';
-    if (r.pfc) h += '<div class="pfcbox">' + [['kcal', 'kcal', r.pfc.kcal], ['p', 'P', r.pfc.p], ['f', 'F', r.pfc.f], ['c', 'C', r.pfc.c]].map(([k, l, v]) => '<div class="' + k + '"><b>' + (v != null ? v : '–') + '</b><span>' + l + (k === 'kcal' ? '' : ' g') + '</span></div>').join('') + '</div>'
-      + '<div class="pfcbox two">' + [['fib', '食物繊維 g', r.pfc.fib], ['salt', '塩分 g', r.pfc.salt]].map(([k, l, v]) => '<div class="' + k + '"><b>' + (v != null ? v : '–') + '</b><span>' + l + '</span></div>').join('') + '</div><div class="sub" style="margin-top:4px">' + esc(r.pfc.per || '') + ' ・ 概算</div>';
-    if (r.nutrition) h += '<div style="margin-top:6px;font-size:13px">📊 ' + esc(r.nutrition) + '</div>';
+    h += pfcBoxHtml(r);
+    if (r.nutrition) h += '<div style="margin-top:6px;font-size:12.5px;color:var(--sub)">' + (r.pfcAuto ? '📝 元のレシピに書かれていた値: ' : '📊 ') + esc(r.nutrition) + '</div>';
     if ((r.tags || []).length) h += '<div class="tags" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px">' + r.tags.map(t => '<span class="tag">' + esc(t) + '</span>').join('') + '</div>';
     h += '</div>';
     h += '<div class="notice ' + (chk.missing.length ? '' : 'ok') + '">' + (chk.missing.length ? '足りない: ' + chk.missing.map(x => esc(x.ing.name)).join('、') : '✅ 今ある食材で作れます') + '</div>';
     h += '<div class="acts"><button class="btn btn-primary" data-act="cooked" data-id="' + r.id + '">🍳 作った</button><button class="btn btn-secondary" data-act="missing-to-shop" data-id="' + r.id + '"' + (chk.missing.length ? '' : ' disabled style="opacity:.5"') + '>🛒 不足を買い物へ</button></div>';
     h += '<div class="card"><h2>材料' + (r.servings ? '<span class="sub">（' + esc(r.servings) + '）</span>' : '') + '</h2>';
-    for (const row of chk.rows) {
+    const cr = r.pfcAuto ? computeRecipe(r) : null;
+    if (cr) h += '<div class="row" style="margin-bottom:6px;font-size:13px"><span style="flex:1;color:var(--sub)">g を直すとPFCが変わります。何食分で割るか</span><input class="yin" type="text" inputmode="decimal" data-id="' + r.id + '" value="' + cr.yield + '"><span class="sub">食</span></div>';
+    for (const [ri, row] of chk.rows.entries()) {
+      const c = cr ? cr.rows[ri] : null;
       const mk = row.state === 'have' ? '✅' : row.state === 'staple' ? '・' : row.state === 'optional' ? '◽' : '❌';
-      h += '<div class="ing"><span class="mk">' + mk + '</span><span class="nm">' + esc(row.ing.name) + (row.ing.optional ? '<span class="opt">好みで</span>' : '') + (row.food && norm(row.food.name) !== norm(row.ing.name) ? '<div class="sub">在庫: ' + esc(row.food.name) + (row.food.status !== 'have' ? '（' + STATUS[row.food.status] + '）' : '') + '</div>' : '') + '</span><span class="amt">' + esc(row.ing.amount) + '</span>'
+      let amt = '<span class="amt">' + esc(row.ing.amount) + '</span>';
+      if (c && c.e && c.e.kcal + c.e.salt > 0) {
+        const gv = c.g == null ? '' : String(Math.round(c.g * 10) / 10);
+        amt = '<span class="amt"><span class="gwrap"><input class="gin" type="text" inputmode="decimal" data-id="' + r.id + '" data-i="' + ri + '" value="' + gv + '" placeholder="?">g</span>'
+          + (row.ing.amount && !/^\d+(\.\d+)?g/.test(row.ing.amount) ? '<div class="sub">' + esc(row.ing.amount) + '</div>' : (row.ing.amount.replace(/^\d+(\.\d+)?g/, '') ? '<div class="sub">' + esc(row.ing.amount.replace(/^\d+(\.\d+)?g/, '')) + '</div>' : ''))
+          + (row.ing.optional ? '<label class="usek"><input type="checkbox" data-act="ing-use" data-id="' + r.id + '" data-i="' + ri + '"' + (c.used ? ' checked' : '') + '>計算に入れる</label>' : '') + '</span>';
+      }
+      h += '<div class="ing"><span class="mk">' + mk + '</span><span class="nm">' + esc(row.ing.name) + (row.ing.optional ? '<span class="opt">好みで</span>' : '') + (row.food && norm(row.food.name) !== norm(row.ing.name) ? '<div class="sub">在庫: ' + esc(row.food.name) + (row.food.status !== 'have' ? '（' + STATUS[row.food.status] + '）' : '') + '</div>' : '') + '</span>' + amt
         + (row.state === 'missing' || row.state === 'optional' ? '<button class="add" data-act="ing-to-shop" data-id="' + r.id + '" data-name="' + esc(row.ing.name) + '">＋買う</button>' : '') + '</div>';
     }
     h += '<p class="sub" style="margin-top:6px">✅ 家にある ❌ ない ◽ 好みで（なくても可） ・ 水・塩・こしょう・油は数えません</p></div>';
@@ -972,7 +1151,9 @@ function renderSheet(){
     + '<div class="row"><div class="field" style="flex:1"><label>器具</label><input type="text" id="eTool" value="' + esc(d.tool) + '" placeholder="Cook4me・レンジ など"></div><div class="field" style="flex:1"><label>分量</label><input type="text" id="eServ" value="' + esc(d.servings) + '" placeholder="2食分"></div></div>'
     + '<div class="field"><label>材料（1行に1つ。「名前 | 量」。好みでのものは先頭に ?）</label><textarea id="eIng" style="min-height:160px">' + esc(ingText) + '</textarea></div>'
     + '<div class="field"><label>作り方（1行に1手順）</label><textarea id="eSteps" style="min-height:140px">' + esc(d.steps.join('\n')) + '</textarea></div>'
-    + '<div class="field"><label>PFC（何あたり・kcal・P・F・C）</label><div class="row" style="margin-bottom:6px"><input type="text" id="ePer" value="' + esc((d.pfc && d.pfc.per) || '1食') + '" placeholder="1食"></div>'
+    + '<div class="field"><label class="usek" style="font-size:14px;color:var(--text)"><input type="checkbox" id="eAuto"' + (d.pfcAuto ? ' checked' : '') + '> PFC・食物繊維・塩分を材料から自動で計算する</label>'
+    + '<div class="row" style="margin-top:6px"><span class="sub" style="flex:1">何食分で割るか</span><input type="text" inputmode="decimal" id="eYield" style="width:80px" value="' + esc(String(d.yield || parseYield(d.servings))) + '"></div></div>'
+    + '<div class="field" id="manualPfc" style="' + (d.pfcAuto ? 'display:none' : '') + '"><label>PFC（手入力。何あたり・kcal・P・F・C）</label><div class="row" style="margin-bottom:6px"><input type="text" id="ePer" value="' + esc((d.pfc && d.pfc.per) || '1食') + '" placeholder="1食"></div>'
     + '<div class="row">' + [['eKcal', 'kcal', 'kcal'], ['eP', 'P', 'p'], ['eF', 'F', 'f'], ['eC', 'C', 'c']].map(([id, ph, k]) => '<input type="text" inputmode="decimal" id="' + id + '" placeholder="' + ph + '" value="' + (d.pfc && d.pfc[k] != null ? d.pfc[k] : '') + '">').join('') + '</div>'
     + '<div class="row" style="margin-top:6px">' + [['eFib', '食物繊維 g', 'fib'], ['eSalt', '塩分 g', 'salt']].map(([id, ph, k]) => '<input type="text" inputmode="decimal" id="' + id + '" placeholder="' + ph + '" value="' + (d.pfc && d.pfc[k] != null ? d.pfc[k] : '') + '">').join('') + '</div></div>'
     + '<div class="field"><label>栄養メモ（ほかに残したいこと）</label><input type="text" id="eNut" value="' + esc(d.nutrition) + '" placeholder="減塩ポン酢なら塩分1.1g など"></div>'
@@ -997,8 +1178,12 @@ function readEditForm(){
     const g = parsePfc(v('eNut')); pfc = g ? Object.assign(g, { per: pfc.per }) : null;
   }
   const tagsIn = v('eTags').split(/[、,，]/).map(s => s.trim()).filter(Boolean);
+  const autoEl = document.getElementById('eAuto');
+  const pfcAuto = !!(autoEl && autoEl.checked);
+  const yv = parseFloat(toHalfNum(v('eYield')));
+  const yieldN = yv > 0 ? yv : null;
   const d = { title: v('eTitle').trim(), tool: v('eTool').trim(), servings: v('eServ').trim(), nutrition: v('eNut').trim(),
-    ingredients, steps: v('eSteps').split(/\r?\n/).map(s => s.trim().replace(/^(\d+[.．)]|[①-⑳])\s*/, '')).filter(Boolean), notes: v('eNotes').trim(), source: v('eSrc').trim(), tags: tagsIn, pfc };
+    ingredients, steps: v('eSteps').split(/\r?\n/).map(s => s.trim().replace(/^(\d+[.．)]|[①-⑳])\s*/, '')).filter(Boolean), notes: v('eNotes').trim(), source: v('eSrc').trim(), tags: tagsIn, pfc, pfcAuto, yield: yieldN };
   return d;
 }
 function saveRecipe(){
@@ -1006,6 +1191,9 @@ function saveRecipe(){
   if (!d.title) { toast('料理名を入れてください'); return; }
   if (!d.tags.length) d.tags = autoTags(d);
   let r = SHEET.id ? getRecipe(SHEET.id) : null;
+  // 「計算に入れる」の選択は材料名で引き継ぐ
+  if (r) for (const ni of d.ingredients) { const old = (r.ingredients || []).find(o => norm(o.name) === norm(ni.name)); if (old && old.use != null) ni.use = old.use; }
+  if (!d.yield) d.yield = parseYield(d.servings);
   if (r) Object.assign(r, d, { updated: Date.now() });
   else { r = Object.assign({ id: uid('r'), fav: false, cooked: [], created: todayStr(), updated: Date.now() }, d); S.recipes.unshift(r); }
   save();
@@ -1078,7 +1266,7 @@ function importJson(text){
   delete o.app; delete o.exportedAt;
   const prevDeleted = S.deleted || {};
   S = o;
-  if ((S.v || 1) < 4) migrate();
+  if ((S.v || 1) < 5) migrate();
   S.deleted = Object.assign({}, prevDeleted, (o.deleted && typeof o.deleted === 'object') ? o.deleted : {});
   save(); return '';
 }
@@ -1129,10 +1317,15 @@ function onClick(e){
     case 'parse-paste': {
       const p = parseRecipeText(val('pasteText'));
       if (!p.title && !p.ingredients.length) { toast('読み取れませんでした'); break; }
+      const cr = computeRecipe(p);
+      p.yield = parseYield(p.servings);
+      // 材料が全部計算できるなら自動計算、成分表にない材料があれば回答に書かれた値を使う
+      p.pfcAuto = cr.counted > 0 && !cr.skipped.some(x => /成分表にない/.test(x)) || !p.pfc;
       SHEET.draft = Object.assign(readEditForm(), p); renderSheet();
       toast('材料' + p.ingredients.length + '・手順' + p.steps.length + 'を読み取りました。確認して保存'); break;
     }
     case 'save-recipe': saveRecipe(); break;
+    case 'ing-use': { const r = getRecipe(id); const ing = r && r.ingredients[Number(b.dataset.i)]; if (ing) { ing.use = !!b.checked; save(); refreshPfc(r); } break; }
     case 'add-shop': { if (addShop(val('newShop'))) toast('追加しました'); render(); break; }
     case 'bought-food': boughtFood(id); toast('「あり」に戻しました'); render(); break;
     case 'noshop': { const f = S.foods.find(x => x.id === id); if (f) { f.noShop = true; save(); } render(); break; }
@@ -1165,7 +1358,26 @@ function onInput(e){
   if (id === 'foodQ') { UI.foodQ = e.target.value; const el = document.getElementById('foodList'); if (el) el.innerHTML = foodListHtml(); }
   if (id === 'recQ') { UI.recQ = e.target.value; const el = document.getElementById('recList'); if (el) el.innerHTML = recipeListHtml(); }
 }
+// 開いているレシピのPFC欄と g 欄だけ描き直す（スクロール位置を保つ）
+function refreshPfc(r){
+  const el = document.getElementById('sheet'); const top = el.scrollTop;
+  renderSheet(); el.scrollTop = top;
+}
 function onChange(e){
+  const t = e.target;
+  if (t.classList && t.classList.contains('gin')) {
+    const r = getRecipe(t.dataset.id); const g = parseFloat(toHalfNum(t.value));
+    if (r && g >= 0) { setIngGrams(r, Number(t.dataset.i), g); save(); }
+    if (r) refreshPfc(r);
+    return;
+  }
+  if (t.classList && t.classList.contains('yin')) {
+    const r = getRecipe(t.dataset.id); const y = parseFloat(toHalfNum(t.value));
+    if (r && y > 0) { r.yield = y; save(); }
+    if (r) refreshPfc(r);
+    return;
+  }
+  if (t.id === 'eAuto') { const m = document.getElementById('manualPfc'); if (m) m.style.display = t.checked ? 'none' : ''; return; }
   if (e.target.id === 'importFile' && e.target.files && e.target.files[0]) {
     const fr = new FileReader();
     fr.onload = () => { if (!confirm('今のデータを置き換えます。よいですか？')) return; const err = importJson(fr.result); toast(err || '取り込みました'); render(); };

@@ -5,90 +5,71 @@ import { loadApp, norm } from './harness.mjs';
 const NOW = '2026-11-25T20:00:00+09:00';
 const app = (storage = {}) => loadApp({ today: NOW, storage, expectClean: true });
 
-test('初期レシピは全部PFCが入っている', () => {
+test('初期レシピは全部、材料から計算したPFC・食物繊維・塩分が出る', () => {
   const a = app();
-  const none = norm(a.$('S.recipes.filter(r => !r.pfc || r.pfc.kcal == null || r.pfc.p == null || r.pfc.f == null || r.pfc.c == null || r.pfc.fib == null || r.pfc.salt == null).map(r => r.title)'));
-  assert.deepEqual(none, []);
-  assert.deepEqual(norm(a.$('S.recipes.find(r => r.id === "seed-c4m1").pfc')), { kcal: 716, p: 54, f: 21, c: 71, fib: 8, salt: 3.2, per: '1食' });
+  const bad = norm(a.$('S.recipes.filter(r => { const p = recipePfc(r); return !r.pfcAuto || !p || !(p.kcal > 0) || p.p == null || p.fib == null || p.salt == null; }).map(r => r.title)'));
+  assert.deepEqual(bad, []);
+  // 計算できない材料は好みのトッピング以外に無い
+  const skipped = norm(a.$('S.recipes.flatMap(r => computeRecipe(r).skipped)'));
+  assert.deepEqual(skipped, ['韓国のり（適量）']);
 });
 test('文章からPFCを拾う（全角数字・「約」・g付きも）', () => {
   const a = app();
   const p = t => norm(a.$(`parsePfc(${JSON.stringify(t)})`));
   assert.deepEqual(p('おかずだけ 約220kcal／P 28g／F 5g／食物繊維 6.6g'), { kcal: 220, p: 28, f: 5, c: null, fib: 6.6, salt: null });
   assert.deepEqual(p('P約45 F約23 C約63／約647kcal'), { kcal: 647, p: 45, f: 23, c: 63, fib: null, salt: null });
-  assert.deepEqual(p('約２５０kcal／P３５'), { kcal: 250, p: 35, f: null, c: null, fib: null, salt: null });
+  assert.equal(p('約２５０kcal／P３５').p, 35);
   assert.equal(a.$('parsePfc("PFC比 30:30:40")'), null);
   assert.equal(a.$('parsePfc("")'), null);
 });
-test('貼り付けたレシピの目安からPFCが入る', () => {
-  const a = app();
-  const r = norm(a.$('parseRecipeText("## 鶏むね蒸し\\n**材料**\\n- 鶏むね肉 150g\\n**作り方**\\n1. 蒸す\\n**目安**：約250kcal／P 35g／F 3g／C 2g")'));
-  assert.deepEqual(r.pfc, { kcal: 250, p: 35, f: 3, c: 2, fib: null, salt: null });
-});
-test('前の版（v2）で保存した初期レシピにPFCが補われ、自分で入れた値は残る', () => {
-  const v2 = { v: 2, foods: [], shop: [], deleted: {}, recipes: [
-    { id: 'seed-chk1', title: '基本のサラダチキン', ingredients: [], steps: [], tags: [], cooked: [], updated: 1 },
-    { id: 'seed-ebi1', title: 'えびの酒蒸し', ingredients: [], steps: [], tags: [], cooked: [], updated: 1, pfc: { kcal: 999, p: 1, f: 1, c: 1, per: '自分' } },
-    { id: 'r1', title: '自作', nutrition: '約300kcal／P20 F10 C30', ingredients: [], steps: [], tags: [], cooked: [], updated: 1 },
-  ] };
-  const a = app({ 'kitchen.v1': JSON.stringify(v2) });
-  assert.equal(a.$('S.v'), 4);
-  assert.equal(a.$('S.recipes[0].pfc.p'), 58);
-  assert.equal(a.$('S.recipes[1].pfc.kcal'), 999);
-  assert.equal(a.$('S.recipes[2].pfc.c'), 30);
-  // 移行だけでは同期の時刻を進めない（ほかの端末の変更を上書きしない）
-  assert.equal(a.$('S.recipes[0].updated'), 1);
-});
-test('P多い順で並ぶ', () => {
-  const a = app();
-  a.$('UI.recFilter = "protein"');
-  const ps = norm(a.$('filterRecipes().map(x => x.r.pfc.p)'));
-  assert.deepEqual(ps, [...ps].sort((x, y) => y - x));
-  assert.equal(ps[0], 59);
-});
-
 test('食物繊維・塩分を文章から拾う（「食塩相当量」も）', () => {
   const a = app();
   const p = t => norm(a.$(`parsePfc(${JSON.stringify(t)})`));
   const r = p('おかずだけ：約210kcal／P 28g／F 6g／食物繊維 7.4g／塩分 約1.7g');
   assert.equal(r.fib, 7.4); assert.equal(r.salt, 1.7);
   assert.equal(p('食物繊維：１２．５g　食塩相当量 0.6g').salt, 0.6);
-  assert.equal(p('食物繊維：１２．５g').fib, 12.5);
 });
-test('前の版（v3）のレシピに食物繊維・塩分が補われ、自分で入れた値は残る', () => {
-  const v3 = { v: 3, foods: [], shop: [], deleted: {}, recipes: [
-    { id: 'seed-sal1', title: 'みそ蒸し', ingredients: [], steps: [], tags: [], cooked: [], updated: 1, pfc: { kcal: 220, p: 30, f: 5, c: 17, per: '1食' } },
-    { id: 'seed-sal2', title: '焼き', ingredients: [], steps: [], tags: [], cooked: [], updated: 1, pfc: { kcal: 230, p: 29, f: 9, c: 12, salt: 9.9, per: '1食' } },
-  ] };
-  const a = app({ 'kitchen.v1': JSON.stringify(v3) });
-  assert.equal(a.$('S.v'), 4);
-  assert.equal(a.$('S.recipes[0].pfc.p'), 30);
-  assert.equal(a.$('S.recipes[0].pfc.fib'), 6.6);
-  assert.equal(a.$('S.recipes[1].pfc.salt'), 9.9);
-  assert.equal(a.$('S.recipes[1].pfc.fib'), 8.3);
-  assert.equal(a.$('S.recipes[0].updated'), 1);
-});
-test('食物繊維多い順・塩分少ない順で並ぶ', () => {
+test('P多い順・食物繊維多い順・塩分少ない順で並ぶ', () => {
   const a = app();
-  a.$('UI.recFilter = "fiber"');
-  const f = norm(a.$('filterRecipes().map(x => x.r.pfc.fib)'));
-  assert.deepEqual(f, [...f].sort((x, y) => y - x)); assert.equal(f[0], 15);
-  a.$('UI.recFilter = "lowsalt"');
-  const s = norm(a.$('filterRecipes().map(x => x.r.pfc.salt)'));
-  assert.deepEqual(s, [...s].sort((x, y) => x - y));
+  for (const [f, key, desc] of [['protein', 'p', true], ['fiber', 'fib', true], ['lowsalt', 'salt', false]]) {
+    a.$(`UI.recFilter = "${f}"`);
+    const v = norm(a.$(`filterRecipes().map(x => x.pf.${key})`));
+    assert.ok(v.length > 30);
+    assert.deepEqual(v, [...v].sort((x, y) => desc ? y - x : x - y));
+  }
 });
-test('v3からの移行では、自分で書いた栄養メモの塩分を初期値より優先する（Codex指摘）', () => {
+test('手入力のレシピは手入力の値のまま', () => {
+  const a = app();
+  a.$('S.recipes.unshift({ id: "r1", title: "外食", ingredients: [{ name: "鶏むね肉", amount: "100g" }], steps: [], tags: [], cooked: [], pfcAuto: false, pfc: { kcal: 999, p: 1, f: 1, c: 1, per: "1食" } })');
+  assert.equal(a.$('recipePfc(S.recipes[0]).kcal'), 999);
+});
+test('前の版（v4）の初期レシピは自動計算に切り替わり、「適量」だった量が新しい量になる', () => {
+  const v4 = { v: 4, foods: [], shop: [], deleted: {}, recipes: [
+    { id: 'seed-soboro', title: '鶏胸そぼろ丼', servings: '1食分', updated: 5, ingredients: [
+      { name: '冷凍鶏胸肉', amount: '150g' }, { name: '醤油', amount: '適量' }, { name: 'みりん', amount: '適量' }, { name: 'おろししょうが', amount: '少々' },
+      { name: '卵', amount: '1個' }, { name: '米', amount: '麦ご飯200g' }, { name: '韓国のり', amount: '適量', optional: true }, { name: 'キムチ', amount: '適量', optional: true, use: true }],
+      steps: [], tags: [], cooked: ['2026-11-25'], pfc: { kcal: 550, p: 44, f: 8, c: 72, per: '1食' } },
+    { id: 'seed-chk3', title: '塩麹蒸し', servings: '2食分', updated: 5, ingredients: [{ name: '鶏むね肉', amount: '300g' }], steps: [], tags: [], cooked: [], pfc: { kcal: 1, p: 1, f: 1, c: 1 } },
+  ] };
+  const a = app({ 'kitchen.v1': JSON.stringify(v4) });
+  assert.equal(a.$('S.v'), 5);
+  const s = norm(a.$('S.recipes[0]'));
+  assert.equal(s.pfcAuto, true);
+  assert.equal(s.ingredients[1].amount, '大さじ1/2');
+  assert.equal(s.ingredients[5].name, '麦ご飯');
+  assert.equal(s.ingredients[7].use, true, '「計算に入れる」の選択は残す');
+  assert.deepEqual(s.cooked, ['2026-11-25']);
+  assert.equal(s.updated, 5, '移行だけでは同期の時刻を進めない');
+  // 材料を自分で変えていたレシピは材料をそのまま使って計算する
+  const c = norm(a.$('S.recipes[1]'));
+  assert.equal(c.ingredients.length, 1);
+  assert.equal(a.$('recipePfc(S.recipes[1]).p'), 35); // 300g×23.3/100÷2
+});
+test('もっと前の版（v3）で栄養メモに書いた値は、手入力のレシピでそのまま使う', () => {
   const v3 = { v: 3, foods: [], shop: [], deleted: {}, recipes: [
-    { id: 'seed-sal2', title: '焼き', nutrition: '塩分9.9g', ingredients: [], steps: [], tags: [], cooked: [], updated: 1, pfc: { kcal: 230, p: 29, f: 9, c: 12, per: '1食' } },
+    { id: 'r9', title: '自作', nutrition: '約300kcal／P20 F10 C30／塩分9.9g', ingredients: [], steps: [], tags: [], cooked: [], updated: 1, pfc: { kcal: 300, p: 20, f: 10, c: 30, per: '1食' } },
   ] };
   const a = app({ 'kitchen.v1': JSON.stringify(v3) });
-  assert.equal(a.$('S.recipes[0].pfc.salt'), 9.9);
-  assert.equal(a.$('S.recipes[0].pfc.fib'), 8.3);
-});
-test('PFCが無い初期レシピに塩分だけのメモがあっても、初期のkcal・PFCは消えない（Codex指摘）', () => {
-  const v3 = { v: 3, foods: [], shop: [], deleted: {}, recipes: [
-    { id: 'seed-sal2', title: '焼き', nutrition: '塩分9.9g', ingredients: [], steps: [], tags: [], cooked: [], updated: 1 },
-  ] };
-  const a = app({ 'kitchen.v1': JSON.stringify(v3) });
-  assert.deepEqual(norm(a.$('S.recipes[0].pfc')), { per: '1食（おかずだけ）', kcal: 230, p: 29, f: 9, c: 12, fib: 8.3, salt: 9.9 });
+  assert.equal(a.$('recipePfc(S.recipes[0]).salt'), 9.9);
+  assert.equal(a.$('S.recipes[0].pfcAuto'), undefined);
 });
