@@ -68,10 +68,11 @@ label{display:block;font-size:12px;color:var(--sub);margin-bottom:5px;font-weigh
 .food.out .nm{color:var(--sub);font-weight:500}
 .food .exp-soon{color:var(--warn);font-weight:700}
 .food .exp-over{color:var(--danger);font-weight:700}
-.st{flex-shrink:0;min-width:64px;padding:7px 8px;border-radius:9px;font-size:12.5px;font-weight:700;text-align:center}
-.st.have{background:var(--ok-bg);color:var(--ok)}
-.st.low{background:var(--warn-bg);color:var(--warn)}
-.st.out{background:var(--bg);color:var(--sub);border:1px solid var(--border)}
+.stseg{flex-shrink:0;display:flex;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:2px;gap:2px}
+.stseg button{padding:7px 7px;border-radius:8px;font-size:12px;font-weight:700;color:var(--sub);min-width:42px}
+.stseg button.sel.have{background:var(--ok-bg);color:var(--ok)}
+.stseg button.sel.low{background:var(--warn-bg);color:var(--warn)}
+.stseg button.sel.out{background:var(--card);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.12)}
 .edit-ic{flex-shrink:0;color:var(--sub);font-size:15px;padding:4px}
 /* レシピ */
 .rc{display:block;width:100%;text-align:left;background:var(--card);border:1px solid var(--border);border-radius:14px;padding:12px 14px;margin-bottom:8px}
@@ -138,11 +139,10 @@ ol.steps li{margin-bottom:8px}
   <button data-tab="settings" class="tab-btn"><span class="ic">⚙️</span>設定</button>
 </nav>
 <script>
-const APP_VERSION = '2026-11-25.3';
+const APP_VERSION = '2026-11-25.4';
 const KEY = 'kitchen.v1';
 const PLACES = ['冷蔵', '冷凍', '常温', '調味料'];
 const STATUS = { have: 'あり', low: '少ない', out: 'なし' };
-const NEXT_STATUS = { have: 'low', low: 'out', out: 'have' };
 
 // ---------- 保存（localStorage は必ずラッパ経由） ----------
 function lsGet(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
@@ -715,7 +715,7 @@ function render(){
 
 function renderFoods(){
   let h = '';
-  if (S.seedNotice) h += '<div class="notice">Obsidianの「食材リスト」（2026-09-13時点）を全部「あり」で入れてあります。今ないものは右のボタンで「なし」にしてください。<br><button class="btn-ghost" style="margin-top:6px;padding:4px 10px;border-radius:8px" data-act="dismiss-seed">わかった</button></div>';
+  if (S.seedNotice) h += '<div class="notice">Obsidianの「食材リスト」（2026-09-13時点）を全部「あり」で入れてあります。今ないものは右で「なし」を選んでください。<br><button class="btn-ghost" style="margin-top:6px;padding:4px 10px;border-radius:8px" data-act="dismiss-seed">わかった</button></div>';
   const soon = S.foods.filter(f => f.status !== 'out' && daysUntil(f.exp) != null && daysUntil(f.exp) <= 3).sort((a, b) => daysUntil(a.exp) - daysUntil(b.exp));
   if (soon.length) h += '<div class="notice">⏰ 早めに使う: ' + soon.map(f => esc(f.name) + '（' + (daysUntil(f.exp) < 0 ? '期限切れ' : 'あと' + daysUntil(f.exp) + '日') + '）').join('、') + '</div>';
   h += '<div class="card"><div class="row"><input type="text" id="newFood" placeholder="食材を追加（例: しめじ）" enterkeyhint="done"><select id="newPlace" style="width:96px;flex-shrink:0">' + PLACES.map(p => '<option' + (p === (UI.place === 'all' ? '冷蔵' : UI.place) ? ' selected' : '') + '>' + p + '</option>').join('') + '</select></div><button class="btn btn-primary" style="margin-top:8px" data-act="add-food">追加</button></div>';
@@ -723,8 +723,15 @@ function renderFoods(){
   h += '<div class="seg" style="margin-bottom:6px">' + ['all'].concat(PLACES).map(p => '<button data-act="place" data-v="' + p + '" class="' + (UI.place === p ? 'sel' : '') + '">' + (p === 'all' ? 'すべて' : p) + '</button>').join('') + '</div>';
   h += '<div class="row" style="justify-content:flex-end;margin:6px 2px 0"><button class="sub" data-act="toggle-out">' + (UI.showOut ? '「なし」を隠す' : '「なし」も表示') + '</button></div>';
   h += '<div id="foodList">' + foodListHtml() + '</div>';
-  h += '<p class="sub" style="margin-top:10px">右のボタンで あり → 少ない → なし。「少ない」「なし」は買い物リストに出ます。名前をタップで期限・メモ・場所の変更。</p>';
+  h += '<p class="sub" style="margin-top:10px">右で あり／少ない／なし を選びます。「少ない」「なし」は買い物リストに出ます。名前をタップで期限・メモ・場所の変更。</p>';
   return h;
+}
+function foodOrder(a, b){ return ((daysUntil(a.exp) ?? 999) - (daysUntil(b.exp) ?? 999)) || a.name.localeCompare(b.name, 'ja'); }
+function setFoodStatus(id, st){
+  const f = S.foods.find(x => x.id === id); if (!f || !STATUS[st] || f.status === st) return;
+  f.status = st;
+  if (st !== 'have') f.noShop = false;
+  save();
 }
 function foodListHtml(){
   let h = '';
@@ -735,14 +742,14 @@ function foodListHtml(){
     let items = S.foods.filter(f => f.place === p && (UI.showOut || f.status !== 'out') && (!q || norm(f.name).includes(q)));
     if (!items.length) continue;
     any = true;
-    const ord = { have: 0, low: 1, out: 2 };
-    items.sort((a, b) => (ord[a.status] - ord[b.status]) || ((daysUntil(a.exp) ?? 999) - (daysUntil(b.exp) ?? 999)) || a.name.localeCompare(b.name, 'ja'));
+    // 在庫の状態では並べ替えない（押した食材が下へ逃げないように）
+    items.sort(foodOrder);
     const haveN = items.filter(f => f.status !== 'out').length;
     h += '<div class="grp-h"><span>' + p + '</span><span>' + haveN + ' / ' + items.length + '</span></div>';
     for (const f of items) {
       const meta = [expLabel(f), f.memo ? esc(f.memo) : ''].filter(Boolean).join(' ・ ');
       h += '<div class="food ' + f.status + '"><button class="nm" style="text-align:left" data-act="edit-food" data-id="' + f.id + '">' + esc(f.name) + (meta ? '<div class="meta">' + meta + '</div>' : '') + '</button>'
-        + '<button class="st ' + f.status + '" data-act="cycle" data-id="' + f.id + '">' + STATUS[f.status] + '</button></div>';
+        + '<div class="stseg">' + Object.keys(STATUS).map(k => '<button class="' + k + (f.status === k ? ' sel' : '') + '" data-act="setst" data-id="' + f.id + '" data-v="' + k + '">' + STATUS[k] + '</button>').join('') + '</div></div>';
     }
   }
   if (!any) h += '<div class="empty">' + (q ? '見つかりません。上の欄から追加できます。' : '食材がありません') + '</div>';
@@ -935,12 +942,6 @@ function addFood(name, place){
   const f = { id: uid('f'), name, place: place || '冷蔵', status: 'have', exp: '', memo: '', updated: Date.now() };
   S.foods.push(f); save(); return f;
 }
-function cycleFood(id){
-  const f = S.foods.find(x => x.id === id); if (!f) return;
-  f.status = NEXT_STATUS[f.status] || 'have';
-  if (f.status !== 'have') f.noShop = false;
-  f.updated = Date.now(); save();
-}
 function addShop(name, from){
   name = String(name || '').trim(); if (!name) return false;
   // 在庫にあるものなら、在庫側を「なし」にして自動の欄に出す
@@ -1005,7 +1006,7 @@ function onClick(e){
     case 'add-food': { const f = addFood(val('newFood'), val('newPlace')); if (f) toast(f.name + ' を「あり」にしました'); render(); break; }
     case 'place': UI.place = v; render(); break;
     case 'toggle-out': UI.showOut = !UI.showOut; render(); break;
-    case 'cycle': cycleFood(id); render(); break;
+    case 'setst': setFoodStatus(id, v); render(); break;
     case 'edit-food': openSheet('food', id); break;
     case 'fstatus': document.querySelectorAll('#fStatus button').forEach(x => x.classList.toggle('sel', x === b)); break;
     case 'clear-exp': document.getElementById('fExp').value = ''; break;

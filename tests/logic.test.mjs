@@ -35,9 +35,9 @@ test('初期データの在庫だけで作れるレシピがあり、足りな�
 });
 test('在庫を「なし」にするとそのレシピは作れなくなり、買い物リストに出る', () => {
   const a = app();
-  a.$('cycleFood(S.foods.find(f => f.name === "キムチ").id)'); // あり→少ない
+  a.$('setFoodStatus(S.foods.find(f => f.name === "キムチ").id, "low")');
   assert.equal(a.$('S.foods.find(f => f.name === "キムチ").status'), 'low');
-  a.$('cycleFood(S.foods.find(f => f.name === "キムチ").id)'); // 少ない→なし
+  a.$('setFoodStatus(S.foods.find(f => f.name === "キムチ").id, "out")');
   const miss = norm(a.$('recipeCheck(S.recipes.find(r => r.title === "さば味噌キムチ雑炊")).missing.map(x => x.ing.name)'));
   assert.deepEqual(miss, ['キムチ']);
   assert.ok(a.$('shopItems().some(x => x.name === "キムチ")'));
@@ -91,4 +91,19 @@ test('同じ名前の候補が複数あれば在庫ありを優先する', () =>
   const a = app();
   a.$('S.foods.push({id:"x1",name:"銀鮭",place:"冷蔵",status:"out",exp:"",memo:""})');
   assert.equal(a.$('findFood("冷凍鮭").status'), 'have');
+});
+test('在庫の状態を選んでも並び順は変わらず、ボタンで直接選べる', () => {
+  const a = app();
+  const order = () => norm(a.$('S.foods.filter(f => f.place === "冷蔵").sort(foodOrder).map(f => f.name)'));
+  const before = order();
+  a.$('setFoodStatus("seed-f-キムチ", "low")');
+  assert.equal(a.$('S.foods.find(f => f.name === "キムチ").status'), 'low');
+  assert.deepEqual(order(), before);
+  a.$('setFoodStatus("seed-f-キムチ", "out")');
+  assert.deepEqual(order(), before);
+  assert.ok(a.$('shopItems().some(x => x.name === "キムチ")'));
+  a.$('setFoodStatus("seed-f-キムチ", "have")');
+  assert.equal(a.$('S.foods.find(f => f.name === "キムチ").status'), 'have');
+  a.$('setFoodStatus("seed-f-キムチ", "bogus")');
+  assert.equal(a.$('S.foods.find(f => f.name === "キムチ").status'), 'have');
 });

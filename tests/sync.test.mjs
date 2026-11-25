@@ -21,7 +21,7 @@ test('初回起動の初期データは古い時刻のまま（新しい端末�
 
 test('変えた食材だけ時刻が付き、消したものには墓標が付く', () => {
   const a = fresh();
-  a.$('cycleFood("seed-f-キムチ")');
+  a.$('setFoodStatus("seed-f-キムチ", "low")');
   assert.equal(food(a, 'キムチ').updated, T);
   assert.equal(food(a, '納豆').updated, SEED_T);
   a.$('S.foods = S.foods.filter(f => f.name !== "餅"); save()');
@@ -29,7 +29,7 @@ test('変えた食材だけ時刻が付き、消したものには墓標が付�
 });
 
 test('別の端末で「なし」にした食材は、まだ触っていない端末に届く', () => {
-  const phone = fresh(); phone.$('cycleFood("seed-f-キムチ"); cycleFood("seed-f-キムチ")');
+  const phone = fresh(); phone.$('setFoodStatus("seed-f-キムチ", "out")');
   const mac = fresh();
   mac.$(`mergeRemote(${JSON.stringify(doc(phone))})`);
   assert.equal(food(mac, 'キムチ').status, 'out');
@@ -110,7 +110,7 @@ test('syncNow: Gistを読んでマージし、変わった中身を書き戻す�
     throw new Error('想定外 ' + url);
   };
   a.$('SY = { token: "t" }');
-  a.$('cycleFood("seed-f-卵")');
+  a.$('setFoodStatus("seed-f-卵", "low")');
   await a.$('syncNow()');
   assert.equal(a.$('SY.state'), 'ok', a.$('SY.err'));
   assert.equal(food(a, '納豆').status, 'out');
