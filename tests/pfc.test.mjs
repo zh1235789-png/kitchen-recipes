@@ -77,3 +77,11 @@ test('食物繊維多い順・塩分少ない順で並ぶ', () => {
   const s = norm(a.$('filterRecipes().map(x => x.r.pfc.salt)'));
   assert.deepEqual(s, [...s].sort((x, y) => x - y));
 });
+test('v3からの移行では、自分で書いた栄養メモの塩分を初期値より優先する（Codex指摘）', () => {
+  const v3 = { v: 3, foods: [], shop: [], deleted: {}, recipes: [
+    { id: 'seed-sal2', title: '焼き', nutrition: '塩分9.9g', ingredients: [], steps: [], tags: [], cooked: [], updated: 1, pfc: { kcal: 230, p: 29, f: 9, c: 12, per: '1食' } },
+  ] };
+  const a = app({ 'kitchen.v1': JSON.stringify(v3) });
+  assert.equal(a.$('S.recipes[0].pfc.salt'), 9.9);
+  assert.equal(a.$('S.recipes[0].pfc.fib'), 8.3);
+});

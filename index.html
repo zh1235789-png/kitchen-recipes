@@ -149,7 +149,7 @@ ol.steps li{margin-bottom:8px}
   <button data-tab="settings" class="tab-btn"><span class="ic">⚙️</span>設定</button>
 </nav>
 <script>
-const APP_VERSION = '2026-11-25.7';
+const APP_VERSION = '2026-11-25.8';
 const KEY = 'kitchen.v1';
 const PLACES = ['冷蔵', '冷凍', '常温', '調味料'];
 const STATUS = { have: 'あり', low: '少ない', out: 'なし' };
@@ -574,11 +574,12 @@ function migrate(){
   if (S.v < 4) {
     for (const r of S.recipes) {
       if (!r) continue;
-      const src = seedPfc(r.id) || parsePfc(r.nutrition);
-      if (!src) continue;
-      if (!r.pfc) { r.pfc = src; continue; }
-      if (r.pfc.fib == null && src.fib != null) r.pfc.fib = src.fib;
-      if (r.pfc.salt == null && src.salt != null) r.pfc.salt = src.salt;
+      // 自分で書いた栄養メモの値を初期値より優先する
+      const memo = parsePfc(r.nutrition) || {}, seed = seedPfc(r.id) || {};
+      const pick = k => memo[k] != null ? memo[k] : (seed[k] != null ? seed[k] : null);
+      if (!r.pfc) { if (memo.kcal != null || seed.kcal != null || pick('fib') != null || pick('salt') != null) r.pfc = Object.assign({}, seed, memo, { fib: pick('fib'), salt: pick('salt') }); continue; }
+      if (r.pfc.fib == null) r.pfc.fib = pick('fib');
+      if (r.pfc.salt == null) r.pfc.salt = pick('salt');
     }
     S.v = 4;
     lsSet(KEY, JSON.stringify(S));
