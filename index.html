@@ -80,6 +80,13 @@ label{display:block;font-size:12px;color:var(--sub);margin-bottom:5px;font-weigh
 .rc .tags{margin-top:5px;display:flex;flex-wrap:wrap;gap:4px}
 .tag{font-size:11px;font-weight:600;padding:2px 7px;border-radius:6px;background:var(--bg);color:var(--sub);border:1px solid var(--border)}
 .rc .nut{font-size:12px;color:var(--sub);margin-top:5px}
+.pfcline b{color:var(--text)}
+.pf.p b{color:var(--danger)}
+.pfcbox{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:10px}
+.pfcbox div{background:var(--bg);border-radius:10px;padding:8px 4px;text-align:center}
+.pfcbox b{display:block;font-size:18px}
+.pfcbox span{font-size:11px;color:var(--sub)}
+.pfcbox .p b{color:var(--danger)}
 .rc .miss{font-size:12.5px;margin-top:6px;line-height:1.5}
 .can{color:var(--ok);font-weight:700}
 .need{color:var(--warn)}
@@ -139,7 +146,7 @@ ol.steps li{margin-bottom:8px}
   <button data-tab="settings" class="tab-btn"><span class="ic">⚙️</span>設定</button>
 </nav>
 <script>
-const APP_VERSION = '2026-11-25.4';
+const APP_VERSION = '2026-11-25.5';
 const KEY = 'kitchen.v1';
 const PLACES = ['冷蔵', '冷凍', '常温', '調味料'];
 const STATUS = { have: 'あり', low: '少ない', out: 'なし' };
@@ -247,7 +254,7 @@ function autoTags(r){
     [/電子レンジ|600W|レンジ/, 'レンジ'], [/フライパン|炒め/, 'フライパン'], [/炊飯器/, '炊飯器'],
     [/鶏(むね|胸)/, '鶏むね'], [/鮭/, '鮭'], [/砂肝/, '砂肝'], [/えび|エビ|海老/, 'えび'], [/さば|鯖/, 'さば'],
     [/ツナ/, 'ツナ'], [/豚/, '豚'], [/卵/, '卵'], [/パスタ/, 'パスタ'], [/粥|雑炊|リゾット|丼|ご飯|ごはん|米/, 'ご飯もの'],
-    [/スープ|汁|チゲ/, '汁物'], [/サラダ/, 'サラダ'], [/作り置き|常備菜|保存/, '作り置き'],
+    [/スープ|汁|チゲ/, '汁物'], [/サラダ(?!チキン)/, 'サラダ'], [/作り置き|常備菜|保存/, '作り置き'],
   ];
   for (const [re, t] of T) if (re.test(text) && !tags.includes(t)) tags.push(t);
   if (tags.includes('レンジグリル') || tags.includes('スチーマー')) { const i = tags.indexOf('レンジ'); if (i < 0) tags.push('レンジ'); }
@@ -304,6 +311,7 @@ function parseRecipeText(text){
   }
   r.notes = notes.join('\n');
   r.tags = autoTags(r);
+  r.pfc = parsePfc(r.nutrition);
   return r;
 }
 
@@ -313,11 +321,32 @@ function I(spec){ // "名前|量" / 先頭 ? は好みで
   const [name, amount = ''] = spec.replace(/^\?/, '').split('|');
   return { name: name.trim(), amount: amount.trim(), optional };
 }
+// 初期レシピのPFC [kcal, P, F, C, 何あたり]。ノートに値があるものはその値、無いものは食品成分表の値からの概算
+const SEED_PFC = {
+  chk1: [285, 58, 5, 2, '1枚分'], chk2: [315, 59, 5, 10, '1枚分'], chk3: [310, 58, 5, 5, '1食'], chk4: [190, 31, 2, 12, '1食'], chk5: [296, 58, 5, 5, '1食'], chk6: [285, 58, 5, 2, '1枚分'],
+  ebi1: [150, 28, 1, 2, '1食'], ebi2: [150, 29, 0, 4, '1食'], ebi3: [155, 30, 1, 10, '1食'], ebi4: [130, 20, 0, 10, '1食'], ebi5: [165, 29, 2, 6, '1食'],
+  zur1: [140, 19, 2, 8, '1食（3等分）'], zur2: [107, 19, 2, 4, '1食'], zur3: [155, 28, 3, 2, '1食'], zur4: [145, 28, 3, 2, '1食'], zur5: [175, 21, 2, 16, '1食'], zur6: [85, 16, 2, 1, '1食（4等分）'],
+  faiga: [770, 58, 26, 74, '1食（納豆込み）'], c4m1: [716, 54, 21, 71, '1食'], c4m2: [669, 59, 20, 63, '1食'], c4m3: [564, 58, 12, 56, '1食'], c4m4: [613, 53, 13, 64, '1食'], c4m5: [548, 48, 11, 62, '1食'],
+  pasta: [647, 45, 23, 63, '1食'], soup: [511, 48, 29, 7, '1食（①赤味噌）'], soboro: [550, 44, 8, 72, '1食'],
+  sal1: [220, 28, 5, 17, '1食（おかずだけ）'], sal2: [230, 29, 9, 12, '1食（おかずだけ）'], sal3: [210, 28, 6, 10, '1食（おかずだけ）'],
+  veg1: [100, 3, 7, 7, '1人分'], veg2: [245, 17, 17, 5, '1人分（豚こま込み）'], veg3: [35, 2, 1, 5, '1人分'],
+  salad1: [265, 8, 19, 16, '1食（量は目安）'], salad2: [533, 45, 35, 12, '1食'],
+};
+function seedPfc(id){ const v = SEED_PFC[String(id).replace(/^seed-/, '')]; return v ? { kcal: v[0], p: v[1], f: v[2], c: v[3], per: v[4] } : null; }
+// 「約220kcal／P 28g／F 5g」のような文から数字を拾う
+function parsePfc(text){
+  const t = String(text || '').replace(/[０-９．]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0));
+  const num = re => { const m = t.match(re); return m ? Math.round(parseFloat(m[1])) : null; };
+  const o = { kcal: num(/(\d+(?:\.\d+)?)\s*kcal/i), p: num(/(?:^|[^a-z])P\s*[:：]?\s*約?\s*(\d+(?:\.\d+)?)/), f: num(/(?:^|[^a-z])F\s*[:：]?\s*約?\s*(\d+(?:\.\d+)?)/), c: num(/(?:^|[^a-z])C\s*[:：]?\s*約?\s*(\d+(?:\.\d+)?)/) };
+  if (o.kcal == null && o.p == null) return null;
+  return o;
+}
 function R(title, o){
   const r = {
     id: 'seed-' + o.id, title, tool: o.tool || '', servings: o.serv || '', nutrition: o.nut || '',
     ingredients: (o.ing || []).map(I), steps: o.steps || [], notes: o.notes || '', source: o.src || '',
     fav: false, cooked: [], created: '2026-11-25', updated: Date.parse('2026-11-25T00:00:00+09:00'),
+    pfc: seedPfc(o.id),
   };
   r.tags = (o.tags || []).concat(autoTags(r).filter(t => !(o.tags || []).includes(t)));
   return r;
@@ -476,7 +505,7 @@ function seedFoods(){
 }
 // 初期データの id は端末ごとに同じにする（別々の id だと同期で同じ食材が2つになる）
 function seedFoodId(name){ return 'seed-f-' + name; }
-function freshState(){ return { v: 2, foods: seedFoods(), recipes: seedRecipes(), shop: [], deleted: {}, seededAt: todayStr(), seedNotice: true }; }
+function freshState(){ return { v: 3, foods: seedFoods(), recipes: seedRecipes(), shop: [], deleted: {}, seededAt: todayStr(), seedNotice: true }; }
 
 // ---------- 状態 ----------
 let S = null;
@@ -510,6 +539,12 @@ function migrate(){
       if (seedNames.has(f.name) && !used.has(f.name)) { f.id = seedFoodId(f.name); used.add(f.name); }
     }
     S.v = 2;
+    lsSet(KEY, JSON.stringify(S));
+  }
+  // v2→v3: 初期レシピにPFCを入れる（自分で入れた値は触らない）
+  if (S.v < 3) {
+    for (const r of S.recipes) if (r && !r.pfc) r.pfc = seedPfc(r.id) || parsePfc(r.nutrition);
+    S.v = 3;
     lsSet(KEY, JSON.stringify(S));
   }
 }
@@ -731,6 +766,7 @@ function setFoodStatus(id, st){
   const f = S.foods.find(x => x.id === id); if (!f || !STATUS[st] || f.status === st) return;
   f.status = st;
   if (st !== 'have') f.noShop = false;
+  f.updated = Date.now(); // save() の stampChanges でも付くが、同期の基準なので明示しておく
   save();
 }
 function foodListHtml(){
@@ -758,7 +794,7 @@ function foodListHtml(){
 
 function renderRecipes(){
   let h = '<input type="search" id="recQ" placeholder="🔍 レシピ・材料で検索" value="' + esc(UI.recQ) + '" style="margin-bottom:10px">';
-  const filters = [['all', 'すべて'], ['can', '✅ 今作れる'], ['near', 'あと1〜2品'], ['fav', '⭐ お気に入り'], ['often', '🍳 よく作る']];
+  const filters = [['all', 'すべて'], ['can', '✅ 今作れる'], ['near', 'あと1〜2品'], ['protein', '💪 P多い順'], ['fav', '⭐ お気に入り'], ['often', '🍳 よく作る']];
   h += '<div class="chips">' + filters.map(([k, l]) => '<button class="chip' + (UI.recFilter === k ? ' sel' : '') + '" data-act="rfilter" data-v="' + k + '">' + l + '</button>').join('') + '</div>';
   const tagCount = {};
   S.recipes.forEach(r => (r.tags || []).forEach(t => tagCount[t] = (tagCount[t] || 0) + 1));
@@ -777,10 +813,14 @@ function recipeListHtml(){
     const cookedN = (r.cooked || []).length;
     h += '<button class="rc" data-act="open-recipe" data-id="' + r.id + '"><div class="t">' + (r.fav ? '<span class="fav">★</span> ' : '') + esc(r.title) + '</div>'
       + '<div class="tags">' + (r.tags || []).slice(0, 5).map(t => '<span class="tag">' + esc(t) + '</span>').join('') + (cookedN ? '<span class="tag">🍳' + cookedN + '回</span>' : '') + '</div>'
-      + (r.nutrition ? '<div class="nut">' + esc(r.nutrition) + '</div>' : '')
+      + (r.pfc ? '<div class="nut pfcline">' + pfcHtml(r.pfc) + '</div>' : (r.nutrition ? '<div class="nut">' + esc(r.nutrition) + '</div>' : ''))
       + '<div class="miss">' + missTxt + '</div></button>';
   }
   return h;
+}
+function pfcHtml(x){
+  return (x.per ? '<span>' + esc(x.per) + '</span> ' : '') + (x.kcal != null ? '<b>' + x.kcal + '</b>kcal ' : '')
+    + ['p', 'f', 'c'].filter(k => x[k] != null).map(k => '<span class="pf ' + k + '">' + k.toUpperCase() + ' <b>' + x[k] + '</b></span>').join(' ');
 }
 function filterRecipes(){
   const q = norm(UI.recQ);
@@ -790,7 +830,8 @@ function filterRecipes(){
   if (UI.recFilter === 'can') list = list.filter(x => x.chk.missing.length === 0);
   if (UI.recFilter === 'near') list = list.filter(x => x.chk.missing.length >= 1 && x.chk.missing.length <= 2);
   if (UI.recFilter === 'fav') list = list.filter(x => x.r.fav);
-  if (UI.recFilter === 'often') list = list.filter(x => (x.r.cooked || []).length > 0).sort((a, b) => b.r.cooked.length - a.r.cooked.length);
+  if (UI.recFilter === 'protein') list = list.filter(x => x.r.pfc && x.r.pfc.p != null).sort((a, b) => b.r.pfc.p - a.r.pfc.p);
+  else if (UI.recFilter === 'often') list = list.filter(x => (x.r.cooked || []).length > 0).sort((a, b) => b.r.cooked.length - a.r.cooked.length);
   else list.sort((a, b) => (a.chk.missing.length - b.chk.missing.length) || ((b.r.fav ? 1 : 0) - (a.r.fav ? 1 : 0)) || a.r.title.localeCompare(b.r.title, 'ja'));
   return list;
 }
@@ -851,6 +892,7 @@ function renderSheet(){
     h += '<div class="card"><div style="font-size:18px;font-weight:700;line-height:1.4">' + esc(r.title) + '</div>';
     const meta = [r.tool, r.servings].filter(Boolean).join(' ・ ');
     if (meta) h += '<div class="sub" style="margin-top:4px">' + esc(meta) + '</div>';
+    if (r.pfc) h += '<div class="pfcbox">' + [['kcal', 'kcal', r.pfc.kcal], ['p', 'P', r.pfc.p], ['f', 'F', r.pfc.f], ['c', 'C', r.pfc.c]].map(([k, l, v]) => '<div class="' + k + '"><b>' + (v != null ? v : '–') + '</b><span>' + l + (k === 'kcal' ? '' : ' g') + '</span></div>').join('') + '</div><div class="sub" style="margin-top:4px">' + esc(r.pfc.per || '') + ' ・ 概算</div>';
     if (r.nutrition) h += '<div style="margin-top:6px;font-size:13px">📊 ' + esc(r.nutrition) + '</div>';
     if ((r.tags || []).length) h += '<div class="tags" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px">' + r.tags.map(t => '<span class="tag">' + esc(t) + '</span>').join('') + '</div>';
     h += '</div>';
@@ -885,7 +927,9 @@ function renderSheet(){
     + '<div class="row"><div class="field" style="flex:1"><label>器具</label><input type="text" id="eTool" value="' + esc(d.tool) + '" placeholder="Cook4me・レンジ など"></div><div class="field" style="flex:1"><label>分量</label><input type="text" id="eServ" value="' + esc(d.servings) + '" placeholder="2食分"></div></div>'
     + '<div class="field"><label>材料（1行に1つ。「名前 | 量」。好みでのものは先頭に ?）</label><textarea id="eIng" style="min-height:160px">' + esc(ingText) + '</textarea></div>'
     + '<div class="field"><label>作り方（1行に1手順）</label><textarea id="eSteps" style="min-height:140px">' + esc(d.steps.join('\n')) + '</textarea></div>'
-    + '<div class="field"><label>栄養のめやす</label><input type="text" id="eNut" value="' + esc(d.nutrition) + '" placeholder="約500kcal／P40 F10 C60"></div>'
+    + '<div class="field"><label>PFC（何あたり・kcal・P・F・C）</label><div class="row" style="margin-bottom:6px"><input type="text" id="ePer" value="' + esc((d.pfc && d.pfc.per) || '1食') + '" placeholder="1食"></div>'
+    + '<div class="row">' + [['eKcal', 'kcal', 'kcal'], ['eP', 'P', 'p'], ['eF', 'F', 'f'], ['eC', 'C', 'c']].map(([id, ph, k]) => '<input type="text" inputmode="decimal" id="' + id + '" placeholder="' + ph + '" value="' + (d.pfc && d.pfc[k] != null ? d.pfc[k] : '') + '">').join('') + '</div></div>'
+    + '<div class="field"><label>栄養メモ（食物繊維・塩分など）</label><input type="text" id="eNut" value="' + esc(d.nutrition) + '" placeholder="食物繊維6g／塩分1.5g"></div>'
     + '<div class="field"><label>タグ（「、」区切り。空なら自動）</label><input type="text" id="eTags" value="' + esc((d.tags || []).join('、')) + '"></div>'
     + '<div class="field"><label>メモ</label><textarea id="eNotes">' + esc(d.notes) + '</textarea></div>'
     + '<div class="field"><label>出典</label><input type="text" id="eSrc" value="' + esc(d.source) + '"></div>'
@@ -901,9 +945,14 @@ function readEditForm(){
     if (body.includes('|')) { const [n, a = ''] = body.split('|'); return n.trim() ? { name: n.trim(), amount: a.trim(), optional } : null; }
     const p = parseIngLine(body); if (p) p.optional = p.optional || optional; return p;
   }).filter(Boolean);
+  const n = id => { const t = v(id).trim().replace(/[０-９．]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0)); if (t === '') return null; const x = parseFloat(t); return isNaN(x) ? null : Math.round(x * 10) / 10; };
+  let pfc = { kcal: n('eKcal'), p: n('eP'), f: n('eF'), c: n('eC'), per: v('ePer').trim() };
+  if (pfc.kcal == null && pfc.p == null && pfc.f == null && pfc.c == null) {
+    const g = parsePfc(v('eNut')); pfc = g ? Object.assign(g, { per: pfc.per }) : null;
+  }
   const tagsIn = v('eTags').split(/[、,，]/).map(s => s.trim()).filter(Boolean);
   const d = { title: v('eTitle').trim(), tool: v('eTool').trim(), servings: v('eServ').trim(), nutrition: v('eNut').trim(),
-    ingredients, steps: v('eSteps').split(/\r?\n/).map(s => s.trim().replace(/^(\d+[.．)]|[①-⑳])\s*/, '')).filter(Boolean), notes: v('eNotes').trim(), source: v('eSrc').trim(), tags: tagsIn };
+    ingredients, steps: v('eSteps').split(/\r?\n/).map(s => s.trim().replace(/^(\d+[.．)]|[①-⑳])\s*/, '')).filter(Boolean), notes: v('eNotes').trim(), source: v('eSrc').trim(), tags: tagsIn, pfc };
   return d;
 }
 function saveRecipe(){
@@ -983,7 +1032,7 @@ function importJson(text){
   delete o.app; delete o.exportedAt;
   const prevDeleted = S.deleted || {};
   S = o;
-  if ((S.v || 1) < 2) migrate();
+  if ((S.v || 1) < 3) migrate();
   S.deleted = Object.assign({}, prevDeleted, (o.deleted && typeof o.deleted === 'object') ? o.deleted : {});
   save(); return '';
 }
