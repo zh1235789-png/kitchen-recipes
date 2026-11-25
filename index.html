@@ -138,7 +138,7 @@ ol.steps li{margin-bottom:8px}
   <button data-tab="settings" class="tab-btn"><span class="ic">⚙️</span>設定</button>
 </nav>
 <script>
-const APP_VERSION = '2026-11-25.1';
+const APP_VERSION = '2026-11-25.2';
 const KEY = 'kitchen.v1';
 const PLACES = ['冷蔵', '冷凍', '常温', '調味料'];
 const STATUS = { have: 'あり', low: '少ない', out: 'なし' };
@@ -471,10 +471,12 @@ function seedFoods(){
   };
   const out = [];
   const t = Date.parse('2026-11-25T00:00:00+09:00');
-  for (const place of PLACES) for (const name of (G[place] || [])) out.push({ id: uid('f'), name, place, status: 'have', exp: '', memo: '', updated: t });
+  for (const place of PLACES) for (const name of (G[place] || [])) out.push({ id: seedFoodId(name), name, place, status: 'have', exp: '', memo: '', updated: t });
   return out;
 }
-function freshState(){ return { v: 1, foods: seedFoods(), recipes: seedRecipes(), shop: [], seededAt: todayStr(), seedNotice: true }; }
+// 初期データの id は端末ごとに同じにする（別々の id だと同期で同じ食材が2つになる）
+function seedFoodId(name){ return 'seed-f-' + name; }
+function freshState(){ return { v: 2, foods: seedFoods(), recipes: seedRecipes(), shop: [], deleted: {}, seededAt: todayStr(), seedNotice: true }; }
 
 // ---------- 状態 ----------
 let S = null;
@@ -482,20 +484,186 @@ let saveOk = true;
 function validState(o){ return o && typeof o === 'object' && Array.isArray(o.foods) && Array.isArray(o.recipes) && Array.isArray(o.shop); }
 function load(){
   const raw = lsGet(KEY);
-  if (raw == null) { S = freshState(); save(); return; }
+  // 初期データは時刻を古いまま保存する（新しい端末の初期データが、ほかの端末の変更を上書きしないように）
+  if (raw == null) { S = freshState(); takeSnapshot(); save(); return; }
   try {
     const o = JSON.parse(raw);
     if (!validState(o)) throw new Error('形式が違う');
     S = o;
+    migrate();
+    takeSnapshot();
   } catch (e) {
     // 壊れたデータは消さずに退避してから初期化する
     lsSet(KEY + '.broken-' + Date.now(), raw);
     S = freshState();
     S.brokenNotice = true;
-    save();
+    takeSnapshot(); save();
   }
 }
-function save(){ saveOk = lsSet(KEY, JSON.stringify(S)); return saveOk; }
+// v1（同期前）: 初期食材の id が端末ごとにばらばらだったので、そろえる
+function migrate(){
+  if (!S.deleted || typeof S.deleted !== 'object') S.deleted = {};
+  if ((S.v || 1) < 2) {
+    const seedNames = new Set(seedFoods().map(f => f.name));
+    const used = new Set();
+    for (const f of S.foods) {
+      if (seedNames.has(f.name) && !used.has(f.name)) { f.id = seedFoodId(f.name); used.add(f.name); }
+    }
+    S.v = 2;
+    lsSet(KEY, JSON.stringify(S));
+  }
+}
+
+// ---------- 端末間同期のための変更記録 ----------
+// 食材・レシピ・買い物の1件ごとに「最後に変えた時刻」(updated) を持たせ、消したものは墓標 (S.deleted) で伝える。
+// 前回保存した中身(SNAP)と比べて、変わったものだけ時刻を付け直す。呼び出し元は save() するだけでよい。
+const COLS = ['foods', 'recipes', 'shop'];
+let SNAP = {};
+function itemSig(x){ const c = Object.assign({}, x); delete c.updated; return JSON.stringify(c); }
+function takeSnapshot(){
+  SNAP = {};
+  for (const col of COLS) for (const x of (S[col] || [])) if (x && x.id) SNAP[col + ':' + x.id] = itemSig(x);
+}
+function stampChanges(){
+  const now = Date.now(), seen = new Set();
+  if (!S.deleted || typeof S.deleted !== 'object') S.deleted = {};
+  for (const col of COLS) for (const x of (S[col] || [])) {
+    if (!x || !x.id) continue;
+    const k = col + ':' + x.id; seen.add(k);
+    if (SNAP[k] !== itemSig(x)) { x.updated = now; delete S.deleted[k]; }
+  }
+  for (const k of Object.keys(SNAP)) if (!seen.has(k)) S.deleted[k] = now;
+  takeSnapshot();
+}
+function save(){
+  stampChanges();
+  saveOk = lsSet(KEY, JSON.stringify(S));
+  syncSoon();
+  return saveOk;
+}
+
+// 相手（Gist）のデータと1件ずつ比べて新しい方を採る。相手が空・壊れていれば何もしない（自分のデータを消さない）
+function mergeRemote(R){
+  if (!R || R.app !== 'kitchen-recipes' || !validState(R)) return false;
+  const rdel = (R.deleted && typeof R.deleted === 'object') ? R.deleted : {};
+  const mdel = S.deleted || {};
+  const deleted = {};
+  for (const col of COLS) {
+    const mine = new Map((S[col] || []).filter(x => x && x.id).map(x => [x.id, x]));
+    const theirs = new Map((R[col] || []).filter(x => x && x.id).map(x => [x.id, x]));
+    const ids = new Set([...mine.keys(), ...theirs.keys()]);
+    const out = [];
+    for (const id of ids) {
+      const k = col + ':' + id;
+      const m = mine.get(id), t = theirs.get(id);
+      const mt = m ? (m.updated || 0) : -1, tt = t ? (t.updated || 0) : -1;
+      const win = (t && tt > mt) ? t : (m || t);
+      const wt = Math.max(mt, tt, 0);
+      const del = Math.max(mdel[k] || 0, rdel[k] || 0);
+      if (del && del >= wt) { deleted[k] = del; continue; }
+      out.push(win);
+    }
+    // 自分の並び順を保ち、相手にしかないものを先頭に
+    const order = new Map([...(S[col] || [])].map((x, i) => [x && x.id, i]));
+    out.sort((a, b) => (order.has(a.id) ? order.get(a.id) : -1) - (order.has(b.id) ? order.get(b.id) : -1));
+    S[col] = out;
+  }
+  // 別々の端末で同じ名前の食材・買い物を足したときは1つにまとめる（新しい方を残す）
+  for (const col of ['foods', 'shop']) {
+    const byName = new Map();
+    for (const x of S[col]) {
+      const n = norm(x.name), prev = byName.get(n);
+      if (!prev) { byName.set(n, x); continue; }
+      const [keep, drop] = (x.updated || 0) > (prev.updated || 0) ? [x, prev] : [prev, x];
+      byName.set(n, keep);
+      deleted[col + ':' + drop.id] = Math.max(keep.updated || 0, 1);
+    }
+    S[col] = S[col].filter(x => byName.get(norm(x.name)) === x);
+  }
+  // 墓標は60日で捨てる（それより古い端末はまず無い）
+  const cut = Date.now() - 60 * 86400000;
+  for (const k of Object.keys(deleted)) if (deleted[k] < cut) delete deleted[k];
+  S.deleted = deleted;
+  takeSnapshot();
+  lsSet(KEY, JSON.stringify(S));
+  return true;
+}
+
+// ---------- 同期（GitHubの非公開Gist。ほかの自作アプリと同じトークンを使い回せる） ----------
+const SYNC_KEY = 'kitchen.sync';            // { token, gistId, last, state, err }
+const GIST_FILE = 'kitchen-recipes.json', GIST_DESC = 'kitchen-recipes sync (auto)';
+let SY = (() => { try { return JSON.parse(lsGet(SYNC_KEY) || '{}') || {}; } catch (e) { return {}; } })();
+function saveSY(){ lsSet(SYNC_KEY, JSON.stringify(SY)); }
+let syncing = false, syncAgain = false, syncTimer = null;
+function syncDoc(){ return { app: 'kitchen-recipes', v: 2, foods: S.foods, recipes: S.recipes, shop: S.shop, deleted: S.deleted || {} }; }
+async function gh(path, opts){
+  const res = await fetch('https://api.github.com' + path, Object.assign({ cache: 'no-store' }, opts || {}, {
+    headers: { 'Authorization': 'Bearer ' + SY.token, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json' },
+  }));
+  if (!res.ok) throw new Error(
+    res.status === 401 ? 'トークンが無効か期限切れです'
+    : (res.status === 403 || res.status === 404) ? 'トークンにgist権限がありません（' + res.status + '）'
+    : 'GitHubエラー ' + res.status);
+  return res.status === 204 ? null : res.json();
+}
+async function syncNow(){
+  if (!SY.token) return;
+  if (syncing) { syncAgain = true; return; }
+  syncing = true; SY.state = 'syncing'; paintSyncStatus();
+  let changed = false;
+  try {
+    if (!SY.gistId) {
+      const list = await gh('/gists?per_page=100');
+      const g = list.find(x => x.files && x.files[GIST_FILE]);
+      SY.gistId = g ? g.id : (await gh('/gists', { method: 'POST', body: JSON.stringify({
+        description: GIST_DESC, public: false, files: { [GIST_FILE]: { content: JSON.stringify(syncDoc()) } } }) })).id;
+    }
+    const g = await gh('/gists/' + SY.gistId);
+    const f = g.files && g.files[GIST_FILE];
+    let remoteText = f ? f.content : '';
+    if (f && f.truncated) remoteText = await (await fetch(f.raw_url, { cache: 'no-store' })).text();
+    let remote = null; try { remote = JSON.parse(remoteText); } catch (e) {}
+    const before = JSON.stringify(syncDoc());
+    mergeRemote(remote);
+    const mineText = JSON.stringify(syncDoc());
+    changed = mineText !== before;
+    if (mineText !== remoteText) await gh('/gists/' + SY.gistId, { method: 'PATCH',
+      body: JSON.stringify({ files: { [GIST_FILE]: { content: mineText } } }) });
+    SY.last = Date.now(); SY.state = 'ok'; SY.err = '';
+  } catch (e) {
+    SY.state = 'err';
+    SY.err = (typeof navigator !== 'undefined' && navigator.onLine === false) ? 'オフライン（次にネットにつながったとき同期します）' : e.message;
+  }
+  saveSY(); syncing = false;
+  // 入力中の画面を壊さないよう、データが変わったときか設定タブのときだけ描き直す
+  if (changed && !(SHEET && (SHEET.mode === 'edit' || SHEET.mode === 'food'))) { render(); if (SHEET) renderSheet(); }
+  else if (UI.tab === 'settings' && !SHEET) render();
+  else paintSyncStatus();
+  if (syncAgain) { syncAgain = false; syncNow(); }
+}
+function syncSoon(){ if (!SY.token) return; clearTimeout(syncTimer); syncTimer = setTimeout(syncNow, 2000); }
+function syncText(){
+  if (!SY.token) return '';
+  if (SY.state === 'syncing') return '☁️ 同期中…';
+  if (SY.state === 'err') return '⚠️ 同期エラー：' + SY.err;
+  if (SY.last) { const d = new Date(SY.last); return '☁️ 同期済み ' + (d.getMonth() + 1) + '/' + d.getDate() + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
+  return '☁️ 同期待ち';
+}
+function paintSyncStatus(){
+  const el = document.getElementById('syncStatus');
+  if (el && el.nodeType) { el.textContent = syncText(); el.style.color = SY.state === 'err' ? 'var(--danger)' : ''; }
+}
+function renderSyncCard(){
+  if (SY.token) return '<div class="card"><h2>☁️ 同期（GitHubの非公開Gist）</h2><div class="sub" id="syncStatus" style="margin-bottom:10px;' + (SY.state === 'err' ? 'color:var(--danger)' : '') + '">' + esc(syncText()) + '</div>'
+    + '<button class="btn btn-secondary" data-act="sync-now">今すぐ同期</button><button class="btn btn-ghost" data-act="sync-off">この端末の同期を解除</button>'
+    + '<div class="sub" style="margin-top:10px">開いたとき・変更の2秒後・画面に戻ったときに自動で同期します。同じ食材を両方の端末で変えたときは、あとに変えた方が残ります。</div></div>';
+  return '<div class="card"><h2>☁️ 同期（GitHubの非公開Gist）</h2><div class="sub" style="margin-bottom:10px">食材・レシピ・買い物リストを自分の非公開Gistに保存し、iPhone・iPad・Macで同じ中身を見られるようにします。</div>'
+    + '<ol class="sub" style="padding-left:20px;line-height:1.7;margin-bottom:10px"><li>筋トレAIコーチやOETのアプリで使っているトークン（ghp_…）があれば、それをそのまま貼れます</li>'
+    + '<li>無ければ <a href="https://github.com/settings/tokens/new?scopes=gist&description=kitchen-recipes%20sync" target="_blank" rel="noopener" style="color:var(--accent)">GitHubのトークン作成画面</a> で gist だけにチェックが入った状態のまま「Generate token」</li>'
+    + '<li>下に貼り付けて「接続」</li></ol>'
+    + '<div class="field"><input id="syncToken" type="password" autocomplete="off" placeholder="ghp_…" style="width:100%;padding:11px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:16px"></div>'
+    + '<button class="btn btn-primary" data-act="sync-on">接続</button><div class="sub" style="margin-top:10px">トークンはこの端末の中にだけ保存され、GitHub以外には送られません。</div></div>';
+}
 
 // ---------- UI 状態 ----------
 const UI = { tab: 'foods', place: 'all', showOut: true, foodQ: '', recQ: '', recFilter: 'all', recTag: '', editFood: null };
@@ -642,7 +810,8 @@ function renderShop(){
 }
 
 function renderSettings(){
-  let h = '<div class="card"><h2>💾 バックアップ</h2><p class="sub" style="margin-bottom:10px">データはこの端末の中だけにあります。機種変更・別の端末へは JSON で移してください。</p>'
+  let h = renderSyncCard();
+  h += '<div class="card"><h2>💾 バックアップ</h2><p class="sub" style="margin-bottom:10px">' + (SY.token ? '同期とは別に、手元にJSONで控えを取れます。' : 'データはこの端末の中だけにあります。同期しない場合、機種変更・別の端末へは JSON で移してください。') + '</p>'
     + '<button class="btn btn-primary" data-act="export">書き出し（JSONをダウンロード）</button>'
     + '<button class="btn btn-secondary" data-act="copy-json">JSONをコピー</button>'
     + '<div class="field" style="margin-top:14px"><label>取り込み（ファイル）</label><input type="file" id="importFile" accept="application/json,.json"></div>'
@@ -808,7 +977,11 @@ function importJson(text){
   let o; try { o = JSON.parse(text); } catch (e) { return '読めませんでした（JSONの形が違います）'; }
   if (!validState(o)) return '食材・レシピのデータではありません';
   delete o.app; delete o.exportedAt;
-  S = o; save(); return '';
+  const prevDeleted = S.deleted || {};
+  S = o;
+  if ((S.v || 1) < 2) migrate();
+  S.deleted = Object.assign({}, prevDeleted, (o.deleted && typeof o.deleted === 'object') ? o.deleted : {});
+  save(); return '';
 }
 function restoreSeed(){
   const ids = new Set(S.recipes.map(r => r.id));
@@ -875,7 +1048,10 @@ function onClick(e){
     case 'copy-json': { const t = exportJson(); (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => toast('コピーしました'), () => toast('コピーできませんでした')); break; }
     case 'import-text': { const t = val('importText'); if (!t.trim()) { toast('JSONを貼り付けてください'); break; } if (!confirm('今のデータを置き換えます。よいですか？')) break; const err = importJson(t); toast(err || '取り込みました'); render(); break; }
     case 'restore-seed': { const n = restoreSeed(); toast(n ? n + '品を戻しました' : '消したレシピはありません'); render(); break; }
-    case 'reset': if (confirm('食材・レシピ・買い物リストをすべて初期状態に戻します。書き出していないデータは消えます。よいですか？')) { S = freshState(); save(); render(); toast('初期状態に戻しました'); } break;
+    case 'reset': if (confirm('食材・レシピ・買い物リストをすべて初期状態に戻します。書き出していないデータは消えます。' + (SY.token ? '同期しているほかの端末も初期状態になります。' : '') + 'よいですか？')) { const d = S.deleted; S = freshState(); S.deleted = d || {}; save(); render(); toast('初期状態に戻しました'); } break;
+    case 'sync-on': { const t = val('syncToken').trim(); if (!t) { toast('トークンを貼ってください'); break; } SY = { token: t }; saveSY(); render(); syncNow(); break; }
+    case 'sync-now': syncNow(); break;
+    case 'sync-off': if (confirm('この端末の同期を解除します（データはこの端末に残ります）')) { SY = {}; saveSY(); render(); } break;
   }
 }
 function onKey(e){
@@ -906,6 +1082,9 @@ document.addEventListener('input', onInput);
 document.addEventListener('compositionend', onInput);
 document.addEventListener('change', onChange);
 render();
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') syncNow(); });
+window.addEventListener('online', () => syncNow());
+syncNow();
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
 </script>
 </body>
