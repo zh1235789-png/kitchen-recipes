@@ -1144,7 +1144,7 @@ function renderSheet(){
   const d = SHEET.draft || (r ? JSON.parse(JSON.stringify(r)) : { title: '', tool: '', servings: '', nutrition: '', ingredients: [], steps: [], notes: '', source: '', tags: [] });
   SHEET.draft = d;
   // 手入力に切り替えたときのために、自動計算の値を手入力欄の初期値にしておく
-  const pv = d.pfc || (d.pfcAuto ? computeRecipe(d).pfc : null);
+  const pv = d.pfcAuto ? computeRecipe(d).pfc : d.pfc;
   const ingText = d.ingredients.map(i => (i.optional ? '?' : '') + i.name + (i.amount ? ' | ' + i.amount : '')).join('\n');
   let h = '<div class="sh-head"><button data-act="' + (r ? 'cancel-edit' : 'close-sheet') + '">キャンセル</button><div class="ttl">' + (r ? 'レシピを編集' : 'レシピを追加') + '</div><button data-act="save-recipe">保存</button></div><div class="sh-body">';
   if (!r) h += '<div class="card"><h2>📋 貼り付けて読み取る</h2><textarea id="pasteText" placeholder="Claudeの回答などをそのまま貼り付け（タイトル・材料・作り方・目安）" style="min-height:120px"></textarea><button class="btn btn-secondary" style="margin-top:8px" data-act="parse-paste">読み取って下の欄に入れる</button></div>';

@@ -73,11 +73,13 @@ test('もっと前の版（v3）で栄養メモに書いた値は、手入力の
   assert.equal(a.$('recipePfc(S.recipes[0]).salt'), 9.9);
   assert.equal(a.$('S.recipes[0].pfcAuto'), undefined);
 });
-test('自動計算を手入力に切り替えるとき、手入力欄には計算値が入っている（Codex指摘）', () => {
+test('自動計算を手入力に切り替えるとき、手入力欄には今の計算値が入る（Codex指摘）', () => {
   const a = app();
-  const html = [];
-  a.document = new Proxy(a.document, {});
-  // 編集画面を描かずに、初期値の出し方だけ確かめる
-  const pv = norm(a.$('(() => { const d = JSON.parse(JSON.stringify(getRecipe("seed-c4m1"))); return d.pfc || (d.pfcAuto ? computeRecipe(d).pfc : null); })()'));
-  assert.ok(pv.kcal > 0 && pv.p > 0);
+  a.$('getRecipe("seed-c4m1").pfc = { kcal: 1, p: 1, f: 1, c: 1, per: "古い" }');
+  a.$('SHEET = { mode: "edit", id: "seed-c4m1" }');
+  let html = '';
+  a.document = { getElementById: (id) => id === 'sheet' ? { set innerHTML(v) { html = v; }, get innerHTML() { return html; } } : null, querySelectorAll: () => [] };
+  a.$('renderSheet()');
+  const p = a.$('recipePfc(getRecipe("seed-c4m1")).p');
+  assert.match(html, new RegExp('id="eP" placeholder="P" value="' + p + '"'));
 });
