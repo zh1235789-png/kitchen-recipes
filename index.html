@@ -154,7 +154,7 @@ ol.steps li{margin-bottom:8px}
   <button data-tab="settings" class="tab-btn"><span class="ic">⚙️</span>設定</button>
 </nav>
 <script>
-const APP_VERSION = '2026-11-25.9';
+const APP_VERSION = '2026-11-25.10';
 const KEY = 'kitchen.v1';
 const PLACES = ['冷蔵', '冷凍', '常温', '調味料'];
 const STATUS = { have: 'あり', low: '少ない', out: 'なし' };
@@ -1143,6 +1143,8 @@ function renderSheet(){
   const r = SHEET.id ? getRecipe(SHEET.id) : null;
   const d = SHEET.draft || (r ? JSON.parse(JSON.stringify(r)) : { title: '', tool: '', servings: '', nutrition: '', ingredients: [], steps: [], notes: '', source: '', tags: [] });
   SHEET.draft = d;
+  // 手入力に切り替えたときのために、自動計算の値を手入力欄の初期値にしておく
+  const pv = d.pfc || (d.pfcAuto ? computeRecipe(d).pfc : null);
   const ingText = d.ingredients.map(i => (i.optional ? '?' : '') + i.name + (i.amount ? ' | ' + i.amount : '')).join('\n');
   let h = '<div class="sh-head"><button data-act="' + (r ? 'cancel-edit' : 'close-sheet') + '">キャンセル</button><div class="ttl">' + (r ? 'レシピを編集' : 'レシピを追加') + '</div><button data-act="save-recipe">保存</button></div><div class="sh-body">';
   if (!r) h += '<div class="card"><h2>📋 貼り付けて読み取る</h2><textarea id="pasteText" placeholder="Claudeの回答などをそのまま貼り付け（タイトル・材料・作り方・目安）" style="min-height:120px"></textarea><button class="btn btn-secondary" style="margin-top:8px" data-act="parse-paste">読み取って下の欄に入れる</button></div>';
@@ -1153,9 +1155,9 @@ function renderSheet(){
     + '<div class="field"><label>作り方（1行に1手順）</label><textarea id="eSteps" style="min-height:140px">' + esc(d.steps.join('\n')) + '</textarea></div>'
     + '<div class="field"><label class="usek" style="font-size:14px;color:var(--text)"><input type="checkbox" id="eAuto"' + (d.pfcAuto ? ' checked' : '') + '> PFC・食物繊維・塩分を材料から自動で計算する</label>'
     + '<div class="row" style="margin-top:6px"><span class="sub" style="flex:1">何食分で割るか</span><input type="text" inputmode="decimal" id="eYield" style="width:80px" value="' + esc(String(d.yield || parseYield(d.servings))) + '"></div></div>'
-    + '<div class="field" id="manualPfc" style="' + (d.pfcAuto ? 'display:none' : '') + '"><label>PFC（手入力。何あたり・kcal・P・F・C）</label><div class="row" style="margin-bottom:6px"><input type="text" id="ePer" value="' + esc((d.pfc && d.pfc.per) || '1食') + '" placeholder="1食"></div>'
-    + '<div class="row">' + [['eKcal', 'kcal', 'kcal'], ['eP', 'P', 'p'], ['eF', 'F', 'f'], ['eC', 'C', 'c']].map(([id, ph, k]) => '<input type="text" inputmode="decimal" id="' + id + '" placeholder="' + ph + '" value="' + (d.pfc && d.pfc[k] != null ? d.pfc[k] : '') + '">').join('') + '</div>'
-    + '<div class="row" style="margin-top:6px">' + [['eFib', '食物繊維 g', 'fib'], ['eSalt', '塩分 g', 'salt']].map(([id, ph, k]) => '<input type="text" inputmode="decimal" id="' + id + '" placeholder="' + ph + '" value="' + (d.pfc && d.pfc[k] != null ? d.pfc[k] : '') + '">').join('') + '</div></div>'
+    + '<div class="field" id="manualPfc" style="' + (d.pfcAuto ? 'display:none' : '') + '"><label>PFC（手入力。何あたり・kcal・P・F・C）</label><div class="row" style="margin-bottom:6px"><input type="text" id="ePer" value="' + esc((pv && pv.per) || '1食') + '" placeholder="1食"></div>'
+    + '<div class="row">' + [['eKcal', 'kcal', 'kcal'], ['eP', 'P', 'p'], ['eF', 'F', 'f'], ['eC', 'C', 'c']].map(([id, ph, k]) => '<input type="text" inputmode="decimal" id="' + id + '" placeholder="' + ph + '" value="' + (pv && pv[k] != null ? pv[k] : '') + '">').join('') + '</div>'
+    + '<div class="row" style="margin-top:6px">' + [['eFib', '食物繊維 g', 'fib'], ['eSalt', '塩分 g', 'salt']].map(([id, ph, k]) => '<input type="text" inputmode="decimal" id="' + id + '" placeholder="' + ph + '" value="' + (pv && pv[k] != null ? pv[k] : '') + '">').join('') + '</div></div>'
     + '<div class="field"><label>栄養メモ（ほかに残したいこと）</label><input type="text" id="eNut" value="' + esc(d.nutrition) + '" placeholder="減塩ポン酢なら塩分1.1g など"></div>'
     + '<div class="field"><label>タグ（「、」区切り。空なら自動）</label><input type="text" id="eTags" value="' + esc((d.tags || []).join('、')) + '"></div>'
     + '<div class="field"><label>メモ</label><textarea id="eNotes">' + esc(d.notes) + '</textarea></div>'
