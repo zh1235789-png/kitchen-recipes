@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="キッチン">
+<meta name="theme-color" content="#65a30d">
+<title>食材とレシピ</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="icon" href="icon.png">
+<style>
+:root{
+  --bg:#f4f6f8; --card:#ffffff; --text:#1a2530; --sub:#6b7a89;
+  --accent:#65a30d; --accent-soft:#ecfccb; --border:#e3e8ee;
+  --warn:#b45309; --warn-bg:#fef3c7; --danger:#dc2626; --danger-bg:#fee2e2;
+  --ok:#16a34a; --ok-bg:#dcfce7;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#0f1519; --card:#1a2229; --text:#e8edf2; --sub:#8b9aa8;
+    --accent:#a3e635; --accent-soft:#283a12; --border:#2a343d;
+    --warn:#fbbf24; --warn-bg:#3a2e10; --danger:#f87171; --danger-bg:#3d1a1a;
+    --ok:#4ade80; --ok-bg:#0f2e1c;
+  }
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+button{-webkit-appearance:none;appearance:none;font-family:inherit;color:inherit;background:none;border:none;cursor:pointer}
+body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;background:var(--bg);color:var(--text);padding-bottom:calc(72px + env(safe-area-inset-bottom))}
+header{background:linear-gradient(135deg,#84cc16,#4d7c0f);color:#fff;padding:calc(14px + env(safe-area-inset-top)) 16px 14px;position:sticky;top:0;z-index:10}
+header h1{font-size:17px;font-weight:700}
+header .hsub{color:rgba(255,255,255,.88);font-size:12px;margin-top:2px}
+main{padding:14px;max-width:560px;margin:0 auto}
+.card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:12px}
+.card h2{font-size:14px;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.sub{color:var(--sub);font-size:12px;line-height:1.5}
+.btn{display:block;width:100%;padding:13px;border-radius:12px;font-size:15px;font-weight:700;text-align:center}
+.btn-primary{background:var(--accent);color:#fff}
+@media (prefers-color-scheme: dark){.btn-primary{color:#10200a}}
+.btn-secondary{background:var(--accent-soft);color:var(--accent)}
+.btn-ghost{background:transparent;color:var(--sub);border:1px solid var(--border)}
+.btn-danger{background:var(--danger-bg);color:var(--danger)}
+.btn + .btn{margin-top:10px}
+.row{display:flex;gap:8px;align-items:center}
+.row > *{min-width:0}
+input[type=text],input[type=search],input[type=date],textarea,select{width:100%;padding:11px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:16px;font-family:inherit}
+textarea{resize:vertical;min-height:90px;line-height:1.5}
+label{display:block;font-size:12px;color:var(--sub);margin-bottom:5px;font-weight:600}
+.field{margin-bottom:14px}
+.seg{display:flex;background:var(--bg);border-radius:10px;padding:3px;gap:3px;border:1px solid var(--border)}
+.seg button{flex:1;padding:8px 0;border-radius:8px;color:var(--sub);font-size:13px;font-weight:600}
+.seg button.sel{background:var(--card);color:var(--accent);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.chips{display:flex;gap:6px;overflow-x:auto;padding:2px 0 8px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex-shrink:0;padding:6px 11px;border-radius:999px;border:1px solid var(--border);background:var(--card);font-size:13px;color:var(--sub);font-weight:600}
+.chip.sel{background:var(--accent);border-color:var(--accent);color:#fff}
+@media (prefers-color-scheme: dark){.chip.sel{color:#10200a}}
+.notice{background:var(--warn-bg);color:var(--warn);border-radius:10px;padding:10px 12px;font-size:12.5px;line-height:1.5;margin-bottom:12px}
+.notice.ok{background:var(--ok-bg);color:var(--ok)}
+/* 食材 */
+.grp-h{font-size:12.5px;font-weight:700;color:var(--sub);margin:14px 4px 6px;display:flex;justify-content:space-between}
+.food{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--card);border:1px solid var(--border);border-radius:12px;margin-bottom:6px}
+.food .nm{flex:1;min-width:0;font-size:15px;font-weight:600}
+.food .meta{font-size:11.5px;color:var(--sub);font-weight:400;margin-top:2px}
+.food.out .nm{color:var(--sub);font-weight:500}
+.food .exp-soon{color:var(--warn);font-weight:700}
+.food .exp-over{color:var(--danger);font-weight:700}
+.st{flex-shrink:0;min-width:64px;padding:7px 8px;border-radius:9px;font-size:12.5px;font-weight:700;text-align:center}
+.st.have{background:var(--ok-bg);color:var(--ok)}
+.st.low{background:var(--warn-bg);color:var(--warn)}
+.st.out{background:var(--bg);color:var(--sub);border:1px solid var(--border)}
+.edit-ic{flex-shrink:0;color:var(--sub);font-size:15px;padding:4px}
+/* レシピ */
+.rc{display:block;width:100%;text-align:left;background:var(--card);border:1px solid var(--border);border-radius:14px;padding:12px 14px;margin-bottom:8px}
+.rc .t{font-size:15px;font-weight:700;line-height:1.4}
+.rc .tags{margin-top:5px;display:flex;flex-wrap:wrap;gap:4px}
+.tag{font-size:11px;font-weight:600;padding:2px 7px;border-radius:6px;background:var(--bg);color:var(--sub);border:1px solid var(--border)}
+.rc .nut{font-size:12px;color:var(--sub);margin-top:5px}
+.rc .miss{font-size:12.5px;margin-top:6px;line-height:1.5}
+.can{color:var(--ok);font-weight:700}
+.need{color:var(--warn)}
+.fav{color:#eab308}
+/* 詳細シート */
+#sheet{position:fixed;inset:0;background:var(--bg);z-index:50;overflow-y:auto;-webkit-overflow-scrolling:touch;display:none}
+#sheet.on{display:block}
+.sh-head{position:sticky;top:0;background:var(--card);border-bottom:1px solid var(--border);padding:calc(10px + env(safe-area-inset-top)) 12px 10px;display:flex;align-items:center;gap:8px;z-index:2}
+.sh-head .ttl{flex:1;font-weight:700;font-size:15px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sh-head button{padding:8px 10px;font-size:15px;font-weight:700;color:var(--accent)}
+.sh-body{padding:14px;max-width:560px;margin:0 auto;padding-bottom:calc(40px + env(safe-area-inset-bottom))}
+.ing{display:flex;gap:8px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--border);font-size:14.5px}
+.ing:last-child{border-bottom:none}
+.ing .mk{width:22px;flex-shrink:0;text-align:center}
+.ing .nm{flex:1;min-width:0}
+.ing .amt{color:var(--sub);font-size:13.5px;text-align:right;flex-shrink:0;max-width:45%}
+.ing .opt{font-size:11px;color:var(--sub);margin-left:4px}
+.ing .add{flex-shrink:0;font-size:12px;font-weight:700;color:var(--accent);padding:2px 6px;border:1px solid var(--accent);border-radius:7px}
+ol.steps{padding-left:22px;font-size:14.5px;line-height:1.65}
+ol.steps li{margin-bottom:8px}
+.pre{white-space:pre-wrap;font-size:13.5px;line-height:1.6}
+.acts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.acts .btn{padding:11px 6px;font-size:13.5px}
+.acts .btn + .btn{margin-top:0}
+/* 買い物 */
+.shop{display:flex;align-items:center;gap:10px;padding:11px 12px;background:var(--card);border:1px solid var(--border);border-radius:12px;margin-bottom:6px}
+.shop .nm{flex:1;min-width:0;font-size:15px}
+.shop .from{font-size:11.5px;color:var(--sub)}
+.ck{width:26px;height:26px;border-radius:8px;border:2px solid var(--border);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:15px;color:#fff}
+.ck.on{background:var(--accent);border-color:var(--accent)}
+.shop.done .nm{text-decoration:line-through;color:var(--sub)}
+.x{flex-shrink:0;color:var(--sub);font-size:16px;padding:2px 6px}
+/* タブバー */
+.tabbar{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--border);display:flex;padding-bottom:env(safe-area-inset-bottom);z-index:20}
+.tab-btn{flex:1;padding:8px 0 7px;font-size:11px;color:var(--sub);display:flex;flex-direction:column;align-items:center;gap:2px;font-weight:600;position:relative}
+.tab-btn .ic{font-size:21px;line-height:1}
+.tab-btn.sel{color:var(--accent)}
+.badge{position:absolute;top:4px;left:calc(50% + 8px);background:var(--danger);color:#fff;font-size:10px;border-radius:999px;padding:1px 5px;font-weight:700}
+.empty{text-align:center;color:var(--sub);font-size:13px;padding:24px 8px}
+.ver{text-align:center;color:var(--sub);font-size:11px;margin-top:8px}
+#toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom));transform:translateX(-50%);background:rgba(20,30,20,.92);color:#fff;padding:9px 16px;border-radius:999px;font-size:13px;z-index:60;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90%;text-align:center}
+#toast.on{opacity:1}
+</style>
+</head>
+<body>
+<header>
+  <h1 id="hTitle">🥬 食材</h1>
+  <div class="hsub" id="hSub"></div>
+</header>
+<main id="main"></main>
+<div id="sheet"></div>
+<div id="toast"></div>
+<nav class="tabbar">
+  <button data-tab="foods" class="tab-btn"><span class="ic">🥬</span>食材</button>
+  <button data-tab="recipes" class="tab-btn"><span class="ic">📖</span>レシピ</button>
+  <button data-tab="shop" class="tab-btn"><span class="ic">🛒</span>買い物<span class="badge" id="shopBadge" style="display:none"></span></button>
+  <button data-tab="settings" class="tab-btn"><span class="ic">⚙️</span>設定</button>
+</nav>
+<script>
+const APP_VERSION = '2026-11-25.1';
+const KEY = 'kitchen.v1';
+const PLACES = ['冷蔵', '冷凍', '常温', '調味料'];
+const STATUS = { have: 'あり', low: '少ない', out: 'なし' };
+const NEXT_STATUS = { have: 'low', low: 'out', out: 'have' };
+
+// ---------- 保存（localStorage は必ずラッパ経由） ----------
+function lsGet(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
+function lsSet(k, v){ try{ localStorage.setItem(k, v); return true; }catch(e){ return false; } }
+
+function uid(p){ return p + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+function todayStr(){ const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// ---------- 名前の照合 ----------
+// 在庫の「冷凍鶏胸肉」とレシピの「鶏むね肉」、「おろしにんにく」と「ニンニクチューブ」を同じものと見なす
+function kataToHira(s){ return s.replace(/[ァ-ヶ]/g, c => String.fromCharCode(c.charCodeAt(0) - 0x60)); }
+function norm(name){
+  let s = String(name || '');
+  s = s.replace(/[（(][^）)]*[）)]/g, '');
+  s = s.replace(/[\s　・]/g, '');
+  s = kataToHira(s).toLowerCase();
+  s = s.replace(/生姜/g, 'しょうが').replace(/大蒜|にんにく/g, 'にんにく').replace(/胸/g, 'むね')
+       .replace(/鯖/g, 'さば').replace(/鮭/g, 'さけ').replace(/醤油/g, 'しょうゆ').replace(/玉子/g, '卵')
+       .replace(/人参/g, 'にんじん').replace(/舞茸/g, 'まいたけ').replace(/葱/g, 'ねぎ').replace(/胡椒/g, 'こしょう').replace(/味醂/g, 'みりん');
+  s = s.replace(/^(冷凍|乾燥|すりおろし|おろし|かっと|むき|ささがき|どらいぱっく|市販の|生)/, '');
+  s = s.replace(/^(冷凍|かっと|むき)/, '');
+  s = s.replace(/(ちゅーぶ|すりおろし)$/, '');
+  s = s.replace(/^すり(ごま)/, '$1');
+  return s;
+}
+// いつも家にある前提で、足りない判定に数えないもの
+const STAPLES = ['水', 'お湯', '湯', '塩', 'こしょう', '塩こしょう', '油', 'さらだ油', '氷'];
+function isStaple(name){ return STAPLES.includes(norm(name)); }
+function nameMatch(ing, food){
+  const a = norm(ing), b = norm(food);
+  if (!a || !b) return false;
+  if (a === b) return true;
+  // 「ごま」を持っていても「ごま油」は別物。「酢」「塩」「粉」も同じ
+  const suffixOther = (long, short) => /^(油|酢|塩|粉)$/.test(long.replace(short, ''));
+  // 「銀さけ」と「さけ」、「赤味噌」と「味噌」は同じ。長い名前の残りが3文字以上なら別物（さば缶味噌と味噌、ブロッコリーとスプラウトなど）
+  const ok = (long, short) => !suffixOther(long, short) && long.length - short.length <= 2;
+  if (a.includes(b)) return ok(a, b);
+  if (b.includes(a)) return ok(b, a);
+  return false;
+}
+function findFood(ingName, foods){
+  const list = foods || S.foods;
+  const n = norm(ingName);
+  const hits = list.filter(f => nameMatch(ingName, f.name));
+  if (!hits.length) return null;
+  // 在庫ありを優先し、名前の長さが近いものを選ぶ
+  const score = f => (norm(f.name) === n ? 0 : 1) * 100 + (f.status === 'out' ? 50 : 0) + Math.abs(norm(f.name).length - n.length);
+  return hits.sort((x, y) => score(x) - score(y))[0];
+}
+// レシピの材料それぞれが家にあるか
+function recipeCheck(r, foods){
+  const rows = (r.ingredients || []).map(ing => {
+    if (isStaple(ing.name)) return { ing, state: 'staple', food: null };
+    const f = findFood(ing.name, foods);
+    if (f && f.status !== 'out') return { ing, state: 'have', food: f };
+    return { ing, state: ing.optional ? 'optional' : 'missing', food: f };
+  });
+  const missing = rows.filter(x => x.state === 'missing');
+  return { rows, missing };
+}
+
+// ---------- 貼り付けたレシピ文の読み取り ----------
+const AMOUNT_RE = /(\d|[０-９]|少々|適量|適宜|ひとつまみ|大さじ|小さじ|好み|各|半|1\/|お好み|\d+g)/;
+function parseIngLine(line){
+  let s = String(line).replace(/^[\s　]*([-・*•●○◦▪︎]|\d+[.)．]|[①-⑳])[\s　]*/, '').trim();
+  if (!s) return null;
+  const optional = /好みで|お好み|あれば|なくても可|なくてもよい|仕上げ用/.test(s);
+  let name = s, amount = '';
+  if (s.includes('|')) { [name, amount] = s.split('|').map(x => x.trim()); }
+  else {
+    const m = s.match(/^(.+?)[\s　]+(.+)$/);
+    if (m && AMOUNT_RE.test(m[2])) { name = m[1]; amount = m[2]; }
+    else {
+      const m2 = s.match(/^(.+?)((?:\d|[０-９]|少々|適量|適宜|ひとつまみ|大さじ|小さじ|各|半|1\/).*)$/);
+      if (m2 && m2[1].length >= 1) { name = m2[1]; amount = m2[2]; }
+    }
+  }
+  name = name.replace(/^(仕上げ用|トッピング|ベース|メイン)[:：]/, '').trim();
+  amount = amount.replace(/[（(](好みで|お好みで|あれば|なくても可)[）)]/g, '').trim();
+  name = name.replace(/[（(](好みで|お好みで|あれば|なくても可)[）)]/g, '').trim();
+  if (!name) return null;
+  return { name, amount, optional };
+}
+function splitInlineList(s){
+  // 「ほうれん草1束（200g）、にんじん1/2本」→ 括弧の中の読点では切らない
+  const out = []; let depth = 0, cur = '';
+  for (const ch of s) {
+    if (ch === '（' || ch === '(') depth++;
+    if (ch === '）' || ch === ')') depth = Math.max(0, depth - 1);
+    if ((ch === '、' || ch === '，' || ch === '／') && depth === 0) { if (cur.trim()) out.push(cur.trim()); cur = ''; }
+    else cur += ch;
+  }
+  if (cur.trim()) out.push(cur.trim());
+  return out;
+}
+function autoTags(r){
+  const text = [r.title, r.tool, (r.ingredients||[]).map(i => i.name).join(' '), (r.steps||[]).join(' ')].join(' ');
+  const tags = [];
+  const T = [
+    [/cook4me|クックフォーミー|圧力/i, 'Cook4me'], [/レンジグリル/, 'レンジグリル'], [/シリコンスチーマー|スチーマー/, 'スチーマー'],
+    [/電子レンジ|600W|レンジ/, 'レンジ'], [/フライパン|炒め/, 'フライパン'], [/炊飯器/, '炊飯器'],
+    [/鶏(むね|胸)/, '鶏むね'], [/鮭/, '鮭'], [/砂肝/, '砂肝'], [/えび|エビ|海老/, 'えび'], [/さば|鯖/, 'さば'],
+    [/ツナ/, 'ツナ'], [/豚/, '豚'], [/卵/, '卵'], [/パスタ/, 'パスタ'], [/粥|雑炊|リゾット|丼|ご飯|ごはん|米/, 'ご飯もの'],
+    [/スープ|汁|チゲ/, '汁物'], [/サラダ/, 'サラダ'], [/作り置き|常備菜|保存/, '作り置き'],
+  ];
+  for (const [re, t] of T) if (re.test(text) && !tags.includes(t)) tags.push(t);
+  if (tags.includes('レンジグリル') || tags.includes('スチーマー')) { const i = tags.indexOf('レンジ'); if (i < 0) tags.push('レンジ'); }
+  return tags;
+}
+function parseRecipeText(text){
+  const lines = String(text || '').split(/\r?\n/);
+  const r = { title: '', ingredients: [], steps: [], nutrition: '', notes: '', servings: '', tool: '' };
+  let mode = 'head'; const notes = [];
+  for (let raw of lines) {
+    const line = raw.trim();
+    if (!line || /^-{3,}$/.test(line)) continue;
+    const plain = line.replace(/\*\*/g, '').replace(/^#+\s*/, '').trim();
+    if (!r.title) {
+      if (/^#/.test(line) || mode === 'head') {
+        r.title = plain.replace(/^([①-⑳]|\d+[.．)])\s*/, '').trim();
+        const tm = r.title.match(/[（(]([^）)]*(レンジ|スチーマー|グリル|Cook4me|フライパン|炊飯器)[^）)]*)[）)]/i);
+        if (tm) r.tool = tm[1];
+        continue;
+      }
+    }
+    if (/^(材料|【材料】)/.test(plain)) {
+      mode = 'ing';
+      const sm = plain.match(/[（(]([^）)]*(人分|食分|枚分|個分)[^）)]*)[）)]/);
+      if (sm) r.servings = sm[1];
+      const inline = plain.replace(/^【?材料】?([（(][^）)]*[）)])?\s*[:：]?\s*/, '');
+      if (inline) splitInlineList(inline).forEach(x => { const p = parseIngLine(x); if (p) r.ingredients.push(p); });
+      continue;
+    }
+    if (/^(作り方|手順|【作り方】|設定)/.test(plain)) {
+      mode = 'steps';
+      const inline = plain.replace(/^【?(作り方|手順|設定)】?\s*[:：]?\s*/, '');
+      if (inline) r.steps.push(inline);
+      continue;
+    }
+    if (/^(目安|おかずだけ|栄養|PFC)/.test(plain) || /^\s*約?\d+\s*kcal/.test(plain)) {
+      r.nutrition = (r.nutrition ? r.nutrition + ' ' : '') + plain.replace(/^(目安|おかずだけ|栄養|PFC)\s*[:：]?\s*/, '');
+      continue;
+    }
+    if (/^(💡|※|ポイント|コツ|メモ)/.test(plain)) { notes.push(plain); mode = 'notes'; continue; }
+    // 材料の後に「作り方」の見出しなしで番号付きの文が続いたら手順とみなす
+    if (mode === 'ing' && (/^(\d+[.．)]|[①-⑳])\s*/.test(line) || /。$/.test(plain))) mode = 'steps';
+    if (mode === 'ing') {
+      if (/^([-・*•]|\d)/.test(line) || line.length < 30) {
+        if (/[、，]/.test(plain) && !/^\d+[.．)]/.test(plain)) splitInlineList(plain.replace(/^[-・*•]\s*/, '')).forEach(x => { const p = parseIngLine(x); if (p) r.ingredients.push(p); });
+        else { const p = parseIngLine(plain); if (p) r.ingredients.push(p); }
+        continue;
+      }
+      mode = 'steps';
+    }
+    if (mode === 'steps') { r.steps.push(plain.replace(/^(\d+[.．)]|[①-⑳])\s*/, '')); continue; }
+    if (mode === 'head') { notes.push(plain); continue; }
+    notes.push(plain);
+  }
+  r.notes = notes.join('\n');
+  r.tags = autoTags(r);
+  return r;
+}
+
+// ---------- 初期データ（Obsidianのノートと過去の相談から） ----------
+function I(spec){ // "名前|量" / 先頭 ? は好みで
+  const optional = spec.startsWith('?');
+  const [name, amount = ''] = spec.replace(/^\?/, '').split('|');
+  return { name: name.trim(), amount: amount.trim(), optional };
+}
+function R(title, o){
+  const r = {
+    id: 'seed-' + o.id, title, tool: o.tool || '', servings: o.serv || '', nutrition: o.nut || '',
+    ingredients: (o.ing || []).map(I), steps: o.steps || [], notes: o.notes || '', source: o.src || '',
+    fav: false, cooked: [], created: '2026-11-25', updated: Date.parse('2026-11-25T00:00:00+09:00'),
+  };
+  r.tags = (o.tags || []).concat(autoTags(r).filter(t => !(o.tags || []).includes(t)));
+  return r;
+}
+const SRC_HP = 'Obsidian: 高タンパク低脂質レシピ集';
+const SRC_LIST = 'Obsidian: 食材リスト（2026-09-13）';
+const SRC_SALMON = 'Claude相談 2026-11-21（冷凍鮭×レンジ）';
+function seedRecipes(){ return [
+  R('基本のサラダチキン', { id: 'chk1', tool: '電子レンジ', serv: '1枚分', src: SRC_HP,
+    ing: ['鶏むね肉|1枚（約250g）', '塩|小さじ1/2', '料理酒|大さじ1', '砂糖|ひとつまみ'],
+    steps: ['鶏むね肉を前日から冷蔵庫で解凍', 'フォークで全体を10〜15箇所刺す', '塩・砂糖をもみ込み、酒をかけてラップで密閉', '600Wで4分加熱 → 裏返して3分 → そのまま5分放置（余熱で中まで火を通す）', '粗熱が取れたら斜め薄切り'],
+    notes: '加熱しすぎるとパサつくので余熱で仕上げる' }),
+  R('レンジ蒸し鶏・ポン酢おろし', { id: 'chk2', tool: '電子レンジ', serv: '1枚分', src: SRC_HP,
+    ing: ['鶏むね肉|1枚（サラダチキンにする）', '大根|100g（おろす）', 'ポン酢|大さじ2', '?小ねぎ|適量'],
+    steps: ['基本のサラダチキンを作って薄切り', '大根おろしを軽く絞り、ポン酢と混ぜる', '鶏肉にかけて小ねぎを散らす'] }),
+  R('鶏むね肉の塩麹蒸し', { id: 'chk3', tool: 'Cook4me', serv: '2食分', src: SRC_HP,
+    ing: ['鶏むね肉|2枚（500g）', '塩麹|大さじ2', '料理酒|50ml', '水|100ml'],
+    steps: ['解凍した鶏むね肉に塩麹をまぶして30分置く', 'Cook4meに水・酒を入れ、鶏肉を入れる', '「蒸し」または「チキン」メニュー → 高圧で8分', '圧力が抜けたら取り出し、食べやすくほぐす'],
+    notes: '冷蔵で3日保存可（作り置き）' }),
+  R('鶏むね肉と大根の生姜煮', { id: 'chk4', tool: 'Cook4me', serv: '2食分', src: SRC_HP,
+    ing: ['鶏むね肉|1枚（250g）', '大根|1/4本（300g）', 'おろししょうが|2cm', '醤油|大さじ2', 'みりん|大さじ1', '水|150ml'],
+    steps: ['鶏むね肉を一口大、大根は2cm輪切り', 'Cook4meにすべての材料を入れる', '「煮物」メニュー → 高圧で10分', '圧力が抜けたら軽く混ぜる'] }),
+  R('鶏むね肉のカレー蒸し', { id: 'chk5', tool: '電子レンジ', serv: '1食分', src: SRC_HP,
+    ing: ['鶏むね肉|1枚（250g）', 'カレー粉|小さじ1', '塩|小さじ1/3', '料理酒|大さじ1', '片栗粉|小さじ1'],
+    steps: ['鶏むね肉をそぎ切り（5mm厚）にする', 'ビニール袋に鶏肉・カレー粉・塩・酒・片栗粉を入れてもむ', '耐熱皿に並べてラップ、600Wで3分 → 裏返して2分'],
+    notes: '片栗粉でしっとり仕上がる' }),
+  R('えびの酒蒸し', { id: 'ebi1', tool: '電子レンジ', serv: '1食分', src: SRC_HP,
+    ing: ['冷凍むきえび|150g', '料理酒|大さじ2', '塩|少々', 'おろししょうが|1cm', '?ポン酢|適量'],
+    steps: ['えびは流水で軽く解凍し、水気を拭く', '耐熱容器にえび・酒・塩・生姜を入れて混ぜ、ラップ', '600Wで2分30秒（ピンクになればOK、加熱しすぎ注意）', 'ポン酢やレモン汁をかける'] }),
+  R('えびと卵白のふわふわ蒸し', { id: 'ebi2', tool: '電子レンジ', serv: '1食分', src: SRC_HP,
+    ing: ['冷凍むきえび|120g', '卵|2個（卵白だけ使う）', '塩|小さじ1/3', '料理酒|大さじ1', '片栗粉|小さじ1'],
+    steps: ['えびを粗みじん切りにし、卵白と全材料を混ぜる', '耐熱容器に流し入れてラップ', '600Wで2分 → 混ぜて → さらに1分30秒'] }),
+  R('えびとブロッコリーの中華蒸し', { id: 'ebi3', tool: '電子レンジ', serv: '1食分', src: SRC_HP,
+    ing: ['冷凍むきえび|120g', '冷凍ブロッコリー|150g', '鶏ガラスープの素|小さじ1', '塩|少々', '水|大さじ1'],
+    steps: ['耐熱容器にブロッコリーとえびを入れる', '鶏ガラスープの素・塩・水を回しかける', 'ラップして600Wで3分30秒', '取り出して混ぜる'] }),
+  R('えびとトマトのスープ煮', { id: 'ebi4', tool: 'Cook4me', serv: '2食分', src: SRC_HP,
+    ing: ['冷凍むきえび|200g', 'トマト缶|1缶（400g）', 'コンソメ|1個', 'おろしにんにく|2cm', '水|100ml', '塩こしょう|適量'],
+    steps: ['Cook4meにトマト缶・コンソメ・にんにく・水を入れる', '高圧で5分', '圧力が抜けたら冷凍えびを入れ、蓋をせず「加熱」で2〜3分', '塩こしょうで味を整える'] }),
+  R('えびの韓国風ピリ辛和え', { id: 'ebi5', tool: '電子レンジ', serv: '1食分', src: SRC_HP,
+    ing: ['冷凍むきえび|150g（茹で済み）', 'コチュジャン|小さじ1', '醤油|小さじ1', '酢|小さじ1', 'すりごま|小さじ1', '砂糖|ひとつまみ', '?レタス|適量'],
+    steps: ['えびをレンジで解凍（600W・1分30秒）、水気を拭く', 'タレの材料をすべて混ぜる', 'えびとタレを和える。レタスに包むと◎'] }),
+  R('砂肝の甘辛煮（常備菜）', { id: 'zur1', tool: 'Cook4me', serv: '3〜4食分', src: SRC_HP,
+    ing: ['冷凍砂肝|300g', '醤油|大さじ2', 'みりん|大さじ2', '料理酒|大さじ2', '砂糖|小さじ1', 'おろししょうが|2cm', '水|100ml'],
+    steps: ['砂肝は冷蔵庫で一晩解凍、半分にカット（銀皮は取る）', 'Cook4meにすべての材料を入れる', '「煮物」メニュー → 高圧で15分', '汁気が多ければ蓋を開けて「加熱」で5分煮詰める'],
+    notes: '冷蔵で4〜5日保存可' }),
+  R('砂肝と生姜のさっぱり煮', { id: 'zur2', tool: 'Cook4me', serv: '2食分', src: SRC_HP,
+    ing: ['冷凍砂肝|200g', 'おろししょうが|3cm', 'ポン酢|大さじ3', '水|50ml', '?長ねぎ|1/2本'],
+    steps: ['砂肝を解凍してカット', 'Cook4meに砂肝・ポン酢・水・生姜を入れる', '高圧で12分', '長ねぎを加え、蓋なしで「加熱」2分'] }),
+  R('砂肝のニンニク醤油蒸し', { id: 'zur3', tool: '電子レンジ', serv: '1食分', src: SRC_HP,
+    ing: ['冷凍砂肝|150g（解凍・薄切り）', '醤油|小さじ2', '料理酒|大さじ1', 'おろしにんにく|1cm', '塩こしょう|少々'],
+    steps: ['砂肝を薄切りにして耐熱容器へ', '調味料をすべて加えて混ぜ、ラップ', '600Wで3分 → 混ぜて → 1分30秒'],
+    notes: '汁ごと食べるとうまみたっぷり' }),
+  R('砂肝の柚子こしょう和え', { id: 'zur4', tool: '電子レンジ', serv: '1食分', src: SRC_HP,
+    ing: ['冷凍砂肝|150g', '料理酒|少々', '塩|少々', '柚子胡椒|小さじ1/2', 'ポン酢|大さじ1', '?小ねぎ|適量'],
+    steps: ['砂肝を酒・塩だけでレンジ蒸し（ニンニク醤油蒸しと同じ加熱）', '粗熱が取れたら柚子こしょうとポン酢で和える', '小ねぎを散らす'] }),
+  R('砂肝と根菜の煮込み', { id: 'zur5', tool: 'Cook4me', serv: '2食分', src: SRC_HP,
+    ing: ['冷凍砂肝|200g', 'ごぼう|1/2本', 'にんじん|1/2本', '醤油|大さじ2', 'みりん|大さじ1', '料理酒|大さじ2', '水|150ml', 'おろししょうが|2cm'],
+    steps: ['砂肝を解凍してカット、ごぼうはささがき・にんじんは乱切り', 'Cook4meにすべての材料を入れる', '高圧で15分'],
+    notes: '食物繊維＋タンパク質' }),
+  R('砂肝のシンプル塩煮（下茹で）', { id: 'zur6', tool: 'Cook4me', serv: '4食分', src: 'Obsidian: Cook4me_低温調理_砂肝レシピ',
+    ing: ['冷凍砂肝|300〜400g', '水|200ml', '料理酒|大さじ2', '塩|小さじ1', 'おろしにんにく|1片', 'おろししょうが|少々'],
+    steps: ['銀皮（白い硬い部分）を取り除く', '鍋に砂肝・水・調味料を入れる', 'マニュアル → 圧力調理で10〜15分'],
+    notes: 'まとめて下茹でしておけば、炒め・スープ・ポン酢蒸しなどに5〜10分で展開できる。冷蔵3〜4日' }),
+  R('鶏むねの低温調理（63℃）', { id: 'chk6', tool: 'Cook4me', serv: '1枚分', src: 'Obsidian: Cook4me_低温調理_砂肝レシピ',
+    ing: ['鶏むね肉|1枚', '塩|適量', '料理酒|少々', '砂糖|少々'],
+    steps: ['塩・酒・砂糖を揉み込み30分冷蔵 → ジップロックで空気を抜く', 'マニュアル調理 → 保温（63℃）で予熱', '袋を入れて蓋をし60分'] }),
+  R('ファイガ 完全食版', { id: 'faiga', tool: 'Cook4me', serv: '2食分', src: 'Obsidian: Cook4me_ファイガ_完全食版（元はリュウジ）',
+    nut: '1食（半量＋納豆）約770kcal／P58 F26 C74／食物繊維 約15g',
+    ing: ['米|100g', 'もち麦|50g', '水|550cc', 'ほんだし|小さじ1', '豆板醤|小さじ1.5', 'ごま油|小さじ2', '鶏むね肉|200g（一口大）', 'さば水煮缶|190g（汁ごと）', '小松菜|100g', '冷凍オクラ|150g', 'にんじん|50g（細切り）', '舞茸|100g', 'にんにく|15g', 'すりごま|大さじ2', 'キムチ|150g（一番上）', '?納豆|1パック（別皿）'],
+    steps: ['底に米・もち麦・水・ほんだし・豆板醤・ごま油を入れて軽く混ぜる', '上に鶏むね・鯖缶（汁ごと）・小松菜・オクラ・にんじん・舞茸・にんにく・すりごまを重ね、キムチを一番上に（混ぜない）', 'マニュアル → 圧力調理6分 → 自然放置10分', '底から混ぜる。納豆は別皿で'],
+    notes: '急速排気しない（粥が噴き出す）。ごま油は消泡も兼ねるので省かない。穀物は合計1合相当まで' }),
+  R('さば味噌キムチ雑炊', { id: 'c4m1', tool: 'Cook4me', serv: '2食分', src: SRC_LIST,
+    nut: '1食 716kcal／P54 F21 C71', tags: ['トレ日'],
+    ing: ['米|100g', 'もち麦|50g', '水|550cc', 'おろしにんにく|小さじ1', 'おろししょうが|小さじ1', '冷凍鶏胸肉|300g（一口大）', '冷凍ブロッコリー|100g', 'すりごま|大さじ1', 'さば缶味噌|1缶（汁ごと）', 'キムチ|150g（一番上）', '?アマニオイル|小さじ1'],
+    steps: ['底：米・もち麦・水・にんにく・しょうが', '上に重ねる：鶏胸・ブロッコリー・すりごま・さば味噌缶・キムチ（一番上、混ぜない）', '加圧6分 → 自然放置10分', 'アマニオイルは器に盛ってから'],
+    notes: 'さば味噌缶は底に沈むと焦げるのでキムチと並べて最上層に。塩分高めなので連日にしない' }),
+  R('銀鮭のトムヤム麦粥', { id: 'c4m2', tool: 'Cook4me', serv: '2食分', src: SRC_LIST,
+    nut: '1食 669kcal／P59 F20 C63', tags: ['トレ日'],
+    ing: ['米|100g', 'もち麦|50g', '水|600cc', 'トムヤムペースト|大さじ1.5', 'おろしにんにく|小さじ1', '冷凍鶏胸肉|300g', '冷凍銀鮭|2切れ（160g）', '冷凍ブロッコリー|100g', 'レモン汁|たっぷり', '?アマニオイル|小さじ1'],
+    steps: ['底：米・もち麦・水・トムヤムペースト・にんにく', '上に重ねる：鶏胸・銀鮭・ブロッコリー', '加圧6分 → 自然放置10分', 'レモン汁とアマニオイルは器で'],
+    notes: 'Pを下げるなら銀鮭1切れ → 588kcal／P50。鮭の骨も柔らかくなる' }),
+  R('砂肝と鶏胸の塩麹サムゲタン風', { id: 'c4m3', tool: 'Cook4me', serv: '2食分', src: SRC_LIST,
+    nut: '1食 564kcal／P58 F12 C56', tags: ['オフ日'],
+    ing: ['米|80g', 'もち麦|50g', '水|700cc', '塩麹|大さじ2', 'おろししょうが|小さじ2', 'おろしにんにく|小さじ1', '冷凍鶏胸肉|300g', '冷凍砂肝|200g', 'すりごま|大さじ1', '?韓国のり|適量', '?柚子胡椒|適量', '?アマニオイル|小さじ1'],
+    steps: ['底：米・もち麦・水・塩麹・しょうが・にんにく', '上に重ねる：鶏胸・砂肝・すりごま', '加圧10分 → 自然放置10分（米は崩れてスープ状でOK）', '韓国のり・柚子胡椒・アマニオイルを器で'],
+    notes: 'Pを下げるなら砂肝100g → 520kcal／P49' }),
+  R('ツナとトマトのもち麦リゾット', { id: 'c4m4', tool: 'Cook4me', serv: '2食分', src: SRC_LIST,
+    nut: '1食 613kcal／P53 F13 C64（ツナ水煮で計算）', tags: ['オフ日'],
+    ing: ['米|100g', 'もち麦|50g', '水|400cc', 'おろしにんにく|小さじ1', 'オイスターソース|小さじ1', 'バター|5g', '冷凍鶏胸肉|300g（一口大）', 'ツナ缶|2缶（汁ごと）', 'すりごま|大さじ1', 'トマト缶|200g（一番上）', '?アマニオイル|小さじ1'],
+    steps: ['底：米・もち麦・水・にんにく・オイスターソース・バター', '上に重ねる：鶏胸・ツナ缶・すりごま・トマト缶（一番上）', '加圧6分 → 自然放置10分'],
+    notes: 'トマト缶は最も焦げやすいので必ず最上層。油漬ツナだとF+8g' }),
+  R('鶏胸と明太子の和風だし粥', { id: 'c4m5', tool: 'Cook4me', serv: '2食分', src: SRC_LIST,
+    nut: '1食 548kcal／P48 F11 C62', tags: ['オフ日'],
+    ing: ['米|100g', 'もち麦|50g', '水|600cc', '和風だしパック|1個', '白だし|大さじ1', '冷凍鶏胸肉|300g（一口大）', '冷凍ブロッコリー|100g', 'すりごま|大さじ1', '冷凍明太子|1腹（60g、一番上）', '?鰹節|適量', '?韓国のり|適量', '?わさび|少々', '?アマニオイル|小さじ1'],
+    steps: ['底：米・もち麦・水・だしパック（袋のまま）・白だし', '上に重ねる：鶏胸・ブロッコリー・すりごま・明太子（一番上）', '加圧6分 → 自然放置10分、だしパックを取り出す', '鰹節・のり・わさび・アマニオイルを器で'],
+    notes: 'いちばん軽い。納豆1パックを足すと P55／638kcal' }),
+  R('鮭と納豆の和風パスタ', { id: 'pasta', tool: '', serv: '1食分', src: SRC_LIST,
+    nut: 'P約45 F約23 C約63／約647kcal',
+    ing: ['高タンパクパスタ|100g', '冷凍銀鮭|80g', '納豆|1パック', 'おろしにんにく|少々', '醤油|小さじ1', 'アマニオイル|小さじ1', '韓国のり|適量'],
+    steps: ['パスタを茹で、鮭を焼くか茹でてほぐす', '火を止めてから納豆・にんにく・醤油を余熱で和える', '仕上げにアマニオイルと韓国のり'] }),
+  R('銀鮭スープ（5つの味）', { id: 'soup', tool: '', serv: '1食分', src: SRC_LIST,
+    nut: '1食 約500〜545kcal／P47〜48',
+    ing: ['冷凍銀鮭|160g', '卵|1個', '冷凍ブロッコリー|100g', '?赤味噌|大さじ1（①）', '?トムヤムペースト|大さじ1（②）', '?塩麹|大さじ1（③）', '?トマト缶|100g（④）', '?キムチ|50g（⑤）'],
+    steps: ['鮭・ブロッコリーを水で煮て、卵を落とす', '味を1つ選んで加える：①赤味噌＋しょうが／②トムヤム＋レモン汁＋にんにく／③塩麹＋柚子胡椒＋白だし／④トマト缶＋バター5g＋にんにく／⑤キムチ＋醤油＋にんにく'] }),
+  R('鶏胸そぼろ丼', { id: 'soboro', tool: 'フライパン', serv: '1食分', src: SRC_LIST,
+    nut: 'P約44 F約8 C約72／約550kcal',
+    ing: ['冷凍鶏胸肉|150g', '醤油|適量', 'みりん|適量', 'おろししょうが|少々', '卵|1個', '米|麦ご飯200g', '?韓国のり|適量', '?キムチ|適量'],
+    steps: ['鶏胸を細かく刻み、醤油・みりん・しょうがでそぼろにする', '卵を炒り卵にする', '麦ご飯にのせ、韓国のり・キムチを添える'] }),
+  R('鮭とごぼう・しめじのみそ蒸し', { id: 'sal1', tool: 'シリコンスチーマー', serv: '1食分', src: SRC_SALMON,
+    nut: 'おかずだけ 約220kcal／P28 F5／食物繊維6.6g／塩分約1.5g',
+    ing: ['冷凍鮭|100g', '冷凍ささがきごぼう|50g', 'しめじ|50g', '冷凍ほうれん草|50g', '味噌|小さじ2', 'みりん|小さじ1', '?おろししょうが|少々'],
+    steps: ['ごぼう、ほうれん草、しめじの順に敷く（ごぼうがいちばん下）', '鮭をのせて、合わせ味噌を塗る', 'ふたをして600Wで6〜7分（解凍済みなら4〜5分）。1分蒸らす'],
+    notes: '麦ごはんと合わせて 約530kcal／P35／食物繊維10.7g。作り置きは翌日まで' }),
+  R('鮭とブロッコリー・オクラのレモンガーリック焼き', { id: 'sal2', tool: 'レンジグリル', serv: '1食分', src: SRC_SALMON,
+    nut: 'おかずだけ 約230kcal／P29 F9／食物繊維8.3g／塩分約0.6g',
+    ing: ['冷凍鮭|100g', '冷凍ブロッコリー|80g', 'エリンギ|50g（縦に裂く）', '冷凍オクラ|50g', 'オリーブオイル|小さじ1', 'おろしにんにく|少々', '塩|ひとつまみ', 'こしょう|少々', 'レモン汁|適量'],
+    steps: ['鮭と野菜を並べ、オイルとにんにくを回しかける', 'レンジグリルの説明書にある魚の目安時間で焼く', '仕上げにレモンを絞ってこしょうをふる'],
+    notes: '加熱時間は説明書で要確認。3品の中で食物繊維がいちばん多い' }),
+  R('鮭と小松菜・まいたけのわかめ蒸し ポン酢がけ', { id: 'sal3', tool: 'シリコンスチーマー', serv: '1食分', src: SRC_SALMON,
+    nut: 'おかずだけ 約210kcal／P28 F6／食物繊維7.4g／塩分約1.7g',
+    ing: ['冷凍鮭|100g', '冷凍小松菜|100g', '舞茸|50g', '冷凍ブロッコリー|50g', 'カットわかめ|2g（戻さない）', '料理酒|小さじ1', 'ポン酢|大さじ1', 'ごま|小さじ1'],
+    steps: ['小松菜、ブロッコリー、まいたけ、わかめを敷き、鮭をのせて酒をふる', 'ふたをして600Wで6〜7分（野菜の水分でわかめが戻る）', 'ポン酢とごまをかける'],
+    notes: '減塩ポン酢なら塩分約1.1g' }),
+  R('ほうれん草とにんじんのナムル', { id: 'veg1', tool: '', serv: '2人分', src: 'Claude相談 2026-11-19',
+    ing: ['ほうれん草|1束（200g）', 'にんじん|1/2本', 'ごま油|小さじ2', 'すりごま|大さじ1', '鶏ガラスープの素|小さじ1/2', 'おろしにんにく|少々'],
+    steps: ['にんじんは細切り。ほうれん草は茹でて水にとり、よく絞って4cmに切る', 'にんじんはほうれん草を茹でたお湯で1分（レンジ600W1分半でも可）', '調味料を全部合わせて和える'],
+    notes: '冷蔵で3日（作り置き向き）。鶏ガラは半分でも物足りなくなりにくい' }),
+  R('ほうれん草・にんじん・卵のオイスター炒め', { id: 'veg2', tool: 'フライパン', serv: '2人分', src: 'Claude相談 2026-11-19',
+    ing: ['ほうれん草|1/2束', 'にんじん|1/3本', '卵|2個', '?豚こま|100g', 'オイスターソース|小さじ2', '醤油|小さじ1/2', '油|適量'],
+    steps: ['卵を溶いて油で半熟に炒め、いったん取り出す', '豚こまを炒め、短冊切りのにんじんを加えてしんなりするまで炒める', 'ほうれん草の茎、葉の順に入れ、オイスターソースと醤油で味付け', '卵を戻してさっと混ぜる'],
+    notes: 'えぐみが気になるときはほうれん草を30秒下茹で' }),
+  R('にんじんとほうれん草の味噌汁', { id: 'veg3', tool: '', serv: '2人分', src: 'Claude相談 2026-11-19',
+    ing: ['にんじん|1/4本（いちょう切り）', 'ほうれん草|2株', '和風だしパック|だし400ml', '味噌|大さじ1強'],
+    steps: ['にんじんをだしで柔らかくなるまで煮る', 'ほうれん草を入れてひと煮立ち', '火を止めて味噌を溶く'] }),
+  R('筋トレ最強サラダ（ビタミン・ミネラル特化）', { id: 'salad1', tool: '', serv: '1食分', src: 'Obsidian: 筋トレ最強サラダ',
+    ing: ['小松菜|適量（生）', 'ブロッコリー|適量（軽く茹でる）', 'パプリカ|赤・黄', 'トマト|適量', 'ブロッコリースーパースプラウト|適量（後のせ）', 'アーモンド|適量', 'かぼちゃの種|適量', 'オリーブオイル|適量', 'レモン汁|適量', '塩こしょう|適量'],
+    steps: ['小松菜をベースに、ブロッコリー・パプリカ・トマトをのせる', 'スプラウト・アーモンド・かぼちゃの種をトッピング', 'オリーブオイル＋レモン汁＋塩胡椒で和える'],
+    notes: 'スプラウトは加熱NG。オイルで脂溶性ビタミン、レモンで鉄の吸収UP' }),
+  R('高タンパクサラダ（黄金レシピ）', { id: 'salad2', tool: '', serv: '1食分', src: 'Obsidian: 筋トレ最強サラダ',
+    nut: 'P40g超も可能',
+    ing: ['鶏むね肉|100g（サラダチキン）', 'ブロッコリー|適量', '卵|2個（ゆで卵）', 'アボカド|1/2個', 'ベビーリーフ|適量', '枝豆|50g', 'オリーブオイル|適量', 'レモン汁|適量', '塩こしょう|適量'],
+    steps: ['具材を全部盛り付ける', 'オリーブオイル＋レモン＋塩胡椒をかける'] }),
+]; }
+// 食材リスト（Obsidian 03.5_Health/栄養・食事/食材リスト.md、2026-09-13時点）
+function seedFoods(){
+  const G = {
+    '常温': ['ツナ缶', 'トマト缶', 'さば缶味噌', '米', 'もち麦', '餅', '高タンパクパスタ', '和風だしパック', '鰹節', '粉こんぶ茶', '粉しいたけ茶', 'カットわかめ', '韓国のり', '明日葉ふりかけ', 'ごま', 'かぼちゃの種', 'きなこ'],
+    '調味料': ['醤油', 'みりん', '料理酒', '白だし', 'ポン酢', '簡単酢', 'オイスターソース', 'お好みソース', '青じそドレッシング', 'レモン汁', 'トムヤムペースト', 'アマニオイル', '赤味噌', '塩麹', '柚子胡椒', '七味', 'わさび', 'おろししょうが', 'おろしにんにく', '砂糖', 'レモン塩', '梅塩'],
+    '冷蔵': ['バター', '卵', 'キムチ', '納豆'],
+    '冷凍': ['冷凍銀鮭', '冷凍鶏胸肉', '冷凍ブロッコリー', '冷凍砂肝', '冷凍明太子'],
+  };
+  const out = [];
+  const t = Date.parse('2026-11-25T00:00:00+09:00');
+  for (const place of PLACES) for (const name of (G[place] || [])) out.push({ id: uid('f'), name, place, status: 'have', exp: '', memo: '', updated: t });
+  return out;
+}
+function freshState(){ return { v: 1, foods: seedFoods(), recipes: seedRecipes(), shop: [], seededAt: todayStr(), seedNotice: true }; }
+
+// ---------- 状態 ----------
+let S = null;
+let saveOk = true;
+function validState(o){ return o && typeof o === 'object' && Array.isArray(o.foods) && Array.isArray(o.recipes) && Array.isArray(o.shop); }
+function load(){
+  const raw = lsGet(KEY);
+  if (raw == null) { S = freshState(); save(); return; }
+  try {
+    const o = JSON.parse(raw);
+    if (!validState(o)) throw new Error('形式が違う');
+    S = o;
+  } catch (e) {
+    // 壊れたデータは消さずに退避してから初期化する
+    lsSet(KEY + '.broken-' + Date.now(), raw);
+    S = freshState();
+    S.brokenNotice = true;
+    save();
+  }
+}
+function save(){ saveOk = lsSet(KEY, JSON.stringify(S)); return saveOk; }
+
+// ---------- UI 状態 ----------
+const UI = { tab: 'foods', place: 'all', showOut: true, foodQ: '', recQ: '', recFilter: 'all', recTag: '', editFood: null };
+
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('on');
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('on'), 1800);
+}
+function daysUntil(dateStr){
+  if (!dateStr) return null;
+  const a = new Date(todayStr() + 'T00:00:00'), b = new Date(dateStr + 'T00:00:00');
+  if (isNaN(b)) return null;
+  return Math.round((b - a) / 86400000);
+}
+function expLabel(f){
+  const d = daysUntil(f.exp);
+  if (d == null) return '';
+  if (d < 0) return '<span class="exp-over">期限切れ（' + (-d) + '日前）</span>';
+  if (d === 0) return '<span class="exp-over">今日まで</span>';
+  if (d <= 3) return '<span class="exp-soon">あと' + d + '日</span>';
+  return '期限 ' + f.exp.slice(5).replace('-', '/');
+}
+
+// ---------- 描画 ----------
+function render(){
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('sel', b.dataset.tab === UI.tab));
+  const titles = { foods: '🥬 食材', recipes: '📖 レシピ', shop: '🛒 買い物', settings: '⚙️ 設定' };
+  document.getElementById('hTitle').textContent = titles[UI.tab];
+  const have = S.foods.filter(f => f.status !== 'out').length;
+  const can = S.recipes.filter(r => recipeCheck(r).missing.length === 0).length;
+  document.getElementById('hSub').textContent = '家にある食材 ' + have + '品 ・ 今作れるレシピ ' + can + '品';
+  const n = shopItems().filter(x => !x.done).length;
+  const badge = document.getElementById('shopBadge');
+  badge.style.display = n ? '' : 'none'; badge.textContent = n;
+  const main = document.getElementById('main');
+  let html = '';
+  if (!saveOk) html += '<div class="notice">⚠️ この端末では保存できません（プライベートブラウズなど）。閉じると変更が消えます。</div>';
+  if (S.brokenNotice) html += '<div class="notice">保存データが読めなかったので初期データで始めました（元のデータは端末内に退避済み）。<button class="btn-ghost" style="margin-top:6px;padding:4px 10px;border-radius:8px" data-act="dismiss-broken">閉じる</button></div>';
+  if (UI.tab === 'foods') html += renderFoods();
+  else if (UI.tab === 'recipes') html += renderRecipes();
+  else if (UI.tab === 'shop') html += renderShop();
+  else html += renderSettings();
+  main.innerHTML = html;
+}
+
+function renderFoods(){
+  let h = '';
+  if (S.seedNotice) h += '<div class="notice">Obsidianの「食材リスト」（2026-09-13時点）を全部「あり」で入れてあります。今ないものは右のボタンで「なし」にしてください。<br><button class="btn-ghost" style="margin-top:6px;padding:4px 10px;border-radius:8px" data-act="dismiss-seed">わかった</button></div>';
+  const soon = S.foods.filter(f => f.status !== 'out' && daysUntil(f.exp) != null && daysUntil(f.exp) <= 3).sort((a, b) => daysUntil(a.exp) - daysUntil(b.exp));
+  if (soon.length) h += '<div class="notice">⏰ 早めに使う: ' + soon.map(f => esc(f.name) + '（' + (daysUntil(f.exp) < 0 ? '期限切れ' : 'あと' + daysUntil(f.exp) + '日') + '）').join('、') + '</div>';
+  h += '<div class="card"><div class="row"><input type="text" id="newFood" placeholder="食材を追加（例: しめじ）" enterkeyhint="done"><select id="newPlace" style="width:96px;flex-shrink:0">' + PLACES.map(p => '<option' + (p === (UI.place === 'all' ? '冷蔵' : UI.place) ? ' selected' : '') + '>' + p + '</option>').join('') + '</select></div><button class="btn btn-primary" style="margin-top:8px" data-act="add-food">追加</button></div>';
+  h += '<input type="search" id="foodQ" placeholder="🔍 食材を検索" value="' + esc(UI.foodQ) + '" style="margin-bottom:10px">';
+  h += '<div class="seg" style="margin-bottom:6px">' + ['all'].concat(PLACES).map(p => '<button data-act="place" data-v="' + p + '" class="' + (UI.place === p ? 'sel' : '') + '">' + (p === 'all' ? 'すべて' : p) + '</button>').join('') + '</div>';
+  h += '<div class="row" style="justify-content:flex-end;margin:6px 2px 0"><button class="sub" data-act="toggle-out">' + (UI.showOut ? '「なし」を隠す' : '「なし」も表示') + '</button></div>';
+  h += '<div id="foodList">' + foodListHtml() + '</div>';
+  h += '<p class="sub" style="margin-top:10px">右のボタンで あり → 少ない → なし。「少ない」「なし」は買い物リストに出ます。名前をタップで期限・メモ・場所の変更。</p>';
+  return h;
+}
+function foodListHtml(){
+  let h = '';
+  const q = norm(UI.foodQ);
+  const places = UI.place === 'all' ? PLACES : [UI.place];
+  let any = false;
+  for (const p of places) {
+    let items = S.foods.filter(f => f.place === p && (UI.showOut || f.status !== 'out') && (!q || norm(f.name).includes(q)));
+    if (!items.length) continue;
+    any = true;
+    const ord = { have: 0, low: 1, out: 2 };
+    items.sort((a, b) => (ord[a.status] - ord[b.status]) || ((daysUntil(a.exp) ?? 999) - (daysUntil(b.exp) ?? 999)) || a.name.localeCompare(b.name, 'ja'));
+    const haveN = items.filter(f => f.status !== 'out').length;
+    h += '<div class="grp-h"><span>' + p + '</span><span>' + haveN + ' / ' + items.length + '</span></div>';
+    for (const f of items) {
+      const meta = [expLabel(f), f.memo ? esc(f.memo) : ''].filter(Boolean).join(' ・ ');
+      h += '<div class="food ' + f.status + '"><button class="nm" style="text-align:left" data-act="edit-food" data-id="' + f.id + '">' + esc(f.name) + (meta ? '<div class="meta">' + meta + '</div>' : '') + '</button>'
+        + '<button class="st ' + f.status + '" data-act="cycle" data-id="' + f.id + '">' + STATUS[f.status] + '</button></div>';
+    }
+  }
+  if (!any) h += '<div class="empty">' + (q ? '見つかりません。上の欄から追加できます。' : '食材がありません') + '</div>';
+  return h;
+}
+
+function renderRecipes(){
+  let h = '<input type="search" id="recQ" placeholder="🔍 レシピ・材料で検索" value="' + esc(UI.recQ) + '" style="margin-bottom:10px">';
+  const filters = [['all', 'すべて'], ['can', '✅ 今作れる'], ['near', 'あと1〜2品'], ['fav', '⭐ お気に入り'], ['often', '🍳 よく作る']];
+  h += '<div class="chips">' + filters.map(([k, l]) => '<button class="chip' + (UI.recFilter === k ? ' sel' : '') + '" data-act="rfilter" data-v="' + k + '">' + l + '</button>').join('') + '</div>';
+  const tagCount = {};
+  S.recipes.forEach(r => (r.tags || []).forEach(t => tagCount[t] = (tagCount[t] || 0) + 1));
+  const tags = Object.keys(tagCount).sort((a, b) => tagCount[b] - tagCount[a]);
+  if (tags.length) h += '<div class="chips">' + tags.map(t => '<button class="chip' + (UI.recTag === t ? ' sel' : '') + '" data-act="rtag" data-v="' + esc(t) + '">' + esc(t) + '</button>').join('') + '</div>';
+  h += '<button class="btn btn-secondary" style="margin-bottom:12px" data-act="new-recipe">＋ レシピを追加（貼り付けOK）</button>';
+  return h + '<div id="recList">' + recipeListHtml() + '</div>';
+}
+function recipeListHtml(){
+  let h = '';
+  const list = filterRecipes();
+  if (!list.length) h += '<div class="empty">該当するレシピがありません</div>';
+  for (const { r, chk } of list) {
+    const m = chk.missing;
+    const missTxt = m.length === 0 ? '<span class="can">✅ 今ある食材で作れる</span>' : '<span class="need">足りない: ' + m.map(x => esc(x.ing.name)).join('、') + '</span>';
+    const cookedN = (r.cooked || []).length;
+    h += '<button class="rc" data-act="open-recipe" data-id="' + r.id + '"><div class="t">' + (r.fav ? '<span class="fav">★</span> ' : '') + esc(r.title) + '</div>'
+      + '<div class="tags">' + (r.tags || []).slice(0, 5).map(t => '<span class="tag">' + esc(t) + '</span>').join('') + (cookedN ? '<span class="tag">🍳' + cookedN + '回</span>' : '') + '</div>'
+      + (r.nutrition ? '<div class="nut">' + esc(r.nutrition) + '</div>' : '')
+      + '<div class="miss">' + missTxt + '</div></button>';
+  }
+  return h;
+}
+function filterRecipes(){
+  const q = norm(UI.recQ);
+  let list = S.recipes.map(r => ({ r, chk: recipeCheck(r) }));
+  if (q) list = list.filter(({ r }) => norm(r.title).includes(q) || (r.ingredients || []).some(i => norm(i.name).includes(q) || (q.length >= 2 && nameMatch(i.name, UI.recQ))) || (r.tags || []).some(t => norm(t).includes(q)));
+  if (UI.recTag) list = list.filter(({ r }) => (r.tags || []).includes(UI.recTag));
+  if (UI.recFilter === 'can') list = list.filter(x => x.chk.missing.length === 0);
+  if (UI.recFilter === 'near') list = list.filter(x => x.chk.missing.length >= 1 && x.chk.missing.length <= 2);
+  if (UI.recFilter === 'fav') list = list.filter(x => x.r.fav);
+  if (UI.recFilter === 'often') list = list.filter(x => (x.r.cooked || []).length > 0).sort((a, b) => b.r.cooked.length - a.r.cooked.length);
+  else list.sort((a, b) => (a.chk.missing.length - b.chk.missing.length) || ((b.r.fav ? 1 : 0) - (a.r.fav ? 1 : 0)) || a.r.title.localeCompare(b.r.title, 'ja'));
+  return list;
+}
+
+// 買い物リスト = 「少ない・なし」の食材 ＋ 手で足したもの
+function shopItems(){
+  const auto = S.foods.filter(f => f.status !== 'have' && !f.noShop).map(f => ({ kind: 'food', id: f.id, name: f.name, from: f.place + '・' + STATUS[f.status], done: false }));
+  const manual = S.shop.map(x => ({ kind: 'manual', id: x.id, name: x.name, from: x.from || '', done: !!x.done }));
+  // 手入力と在庫が同じものなら在庫側に寄せる
+  const autoNames = auto.map(a => norm(a.name));
+  return auto.concat(manual.filter(m => !autoNames.includes(norm(m.name))));
+}
+function renderShop(){
+  let h = '<div class="card"><div class="row"><input type="text" id="newShop" placeholder="買うものを追加" enterkeyhint="done"><button class="btn btn-primary" style="width:84px;flex-shrink:0;padding:11px" data-act="add-shop">追加</button></div></div>';
+  const items = shopItems();
+  const fromFoods = items.filter(x => x.kind === 'food');
+  const manual = items.filter(x => x.kind === 'manual');
+  h += '<div class="grp-h"><span>在庫が「少ない・なし」</span><span>' + fromFoods.length + '</span></div>';
+  if (!fromFoods.length) h += '<div class="empty" style="padding:10px">ありません</div>';
+  for (const x of fromFoods) h += '<div class="shop"><button class="ck" data-act="bought-food" data-id="' + x.id + '"></button><div class="nm">' + esc(x.name) + '<div class="from">' + esc(x.from) + '</div></div><button class="x" title="リストから外す" data-act="noshop" data-id="' + x.id + '">✕</button></div>';
+  h += '<div class="grp-h"><span>追加したもの・レシピの不足分</span><span>' + manual.filter(x => !x.done).length + '</span></div>';
+  if (!manual.length) h += '<div class="empty" style="padding:10px">レシピ画面の「足りないものを買い物リストへ」でも入ります</div>';
+  for (const x of manual) h += '<div class="shop' + (x.done ? ' done' : '') + '"><button class="ck' + (x.done ? ' on' : '') + '" data-act="toggle-shop" data-id="' + x.id + '">' + (x.done ? '✓' : '') + '</button><div class="nm">' + esc(x.name) + (x.from ? '<div class="from">' + esc(x.from) + '</div>' : '') + '</div><button class="x" data-act="del-shop" data-id="' + x.id + '">✕</button></div>';
+  if (manual.some(x => x.done)) h += '<button class="btn btn-secondary" style="margin-top:10px" data-act="shop-to-stock">✓ を食材に入れてリストから消す</button>';
+  h += '<p class="sub" style="margin-top:10px">上の □ をタップすると、その食材が「あり」に戻ります。✕ は今回は買わない（次に「なし」にするまで出ません）。</p>';
+  return h;
+}
+
+function renderSettings(){
+  let h = '<div class="card"><h2>💾 バックアップ</h2><p class="sub" style="margin-bottom:10px">データはこの端末の中だけにあります。機種変更・別の端末へは JSON で移してください。</p>'
+    + '<button class="btn btn-primary" data-act="export">書き出し（JSONをダウンロード）</button>'
+    + '<button class="btn btn-secondary" data-act="copy-json">JSONをコピー</button>'
+    + '<div class="field" style="margin-top:14px"><label>取り込み（ファイル）</label><input type="file" id="importFile" accept="application/json,.json"></div>'
+    + '<div class="field"><label>取り込み（貼り付け）</label><textarea id="importText" placeholder="書き出したJSONを貼り付け"></textarea></div>'
+    + '<button class="btn btn-ghost" data-act="import-text">貼り付けたJSONで置き換える</button></div>';
+  h += '<div class="card"><h2>🔁 レシピの追加取り込み</h2><p class="sub" style="margin-bottom:10px">Claudeで考えたレシピは、レシピタブの「＋ レシピを追加」に文章をそのまま貼れば読み取ります。</p>'
+    + '<button class="btn btn-ghost" data-act="restore-seed">最初から入っていたレシピで消したものを戻す</button></div>';
+  h += '<div class="card"><h2>🧾 データ</h2><p class="sub">食材 ' + S.foods.length + '品 ・ レシピ ' + S.recipes.length + '品 ・ 買い物 ' + S.shop.length + '件</p>'
+    + '<button class="btn btn-danger" style="margin-top:10px" data-act="reset">すべて初期状態に戻す</button></div>';
+  h += '<div class="ver">食材とレシピ v' + APP_VERSION + '</div>';
+  return h;
+}
+
+// ---------- レシピ詳細・編集 ----------
+let SHEET = null; // {mode:'view'|'edit', id}
+function openSheet(mode, id){ SHEET = { mode, id }; renderSheet(); document.getElementById('sheet').classList.add('on'); document.getElementById('sheet').scrollTop = 0; }
+function closeSheet(){ SHEET = null; const el = document.getElementById('sheet'); el.classList.remove('on'); el.innerHTML = ''; render(); }
+function getRecipe(id){ return S.recipes.find(r => r.id === id); }
+function renderSheet(){
+  const el = document.getElementById('sheet');
+  if (!SHEET) return;
+  if (SHEET.mode === 'food') { el.innerHTML = foodSheetHtml(); return; }
+  if (SHEET.mode === 'view') {
+    const r = getRecipe(SHEET.id); if (!r) { closeSheet(); return; }
+    const chk = recipeCheck(r);
+    let h = '<div class="sh-head"><button data-act="close-sheet">‹ 戻る</button><div class="ttl">' + esc(r.title) + '</div><button data-act="fav" data-id="' + r.id + '">' + (r.fav ? '★' : '☆') + '</button></div><div class="sh-body">';
+    h += '<div class="card"><div style="font-size:18px;font-weight:700;line-height:1.4">' + esc(r.title) + '</div>';
+    const meta = [r.tool, r.servings].filter(Boolean).join(' ・ ');
+    if (meta) h += '<div class="sub" style="margin-top:4px">' + esc(meta) + '</div>';
+    if (r.nutrition) h += '<div style="margin-top:6px;font-size:13px">📊 ' + esc(r.nutrition) + '</div>';
+    if ((r.tags || []).length) h += '<div class="tags" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px">' + r.tags.map(t => '<span class="tag">' + esc(t) + '</span>').join('') + '</div>';
+    h += '</div>';
+    h += '<div class="notice ' + (chk.missing.length ? '' : 'ok') + '">' + (chk.missing.length ? '足りない: ' + chk.missing.map(x => esc(x.ing.name)).join('、') : '✅ 今ある食材で作れます') + '</div>';
+    h += '<div class="acts"><button class="btn btn-primary" data-act="cooked" data-id="' + r.id + '">🍳 作った</button><button class="btn btn-secondary" data-act="missing-to-shop" data-id="' + r.id + '"' + (chk.missing.length ? '' : ' disabled style="opacity:.5"') + '>🛒 不足を買い物へ</button></div>';
+    h += '<div class="card"><h2>材料' + (r.servings ? '<span class="sub">（' + esc(r.servings) + '）</span>' : '') + '</h2>';
+    for (const row of chk.rows) {
+      const mk = row.state === 'have' ? '✅' : row.state === 'staple' ? '・' : row.state === 'optional' ? '◽' : '❌';
+      h += '<div class="ing"><span class="mk">' + mk + '</span><span class="nm">' + esc(row.ing.name) + (row.ing.optional ? '<span class="opt">好みで</span>' : '') + (row.food && norm(row.food.name) !== norm(row.ing.name) ? '<div class="sub">在庫: ' + esc(row.food.name) + (row.food.status !== 'have' ? '（' + STATUS[row.food.status] + '）' : '') + '</div>' : '') + '</span><span class="amt">' + esc(row.ing.amount) + '</span>'
+        + (row.state === 'missing' || row.state === 'optional' ? '<button class="add" data-act="ing-to-shop" data-id="' + r.id + '" data-name="' + esc(row.ing.name) + '">＋買う</button>' : '') + '</div>';
+    }
+    h += '<p class="sub" style="margin-top:6px">✅ 家にある ❌ ない ◽ 好みで（なくても可） ・ 水・塩・こしょう・油は数えません</p></div>';
+    if ((r.steps || []).length) h += '<div class="card"><h2>作り方</h2><ol class="steps">' + r.steps.map(s => '<li>' + esc(s) + '</li>').join('') + '</ol></div>';
+    if (r.notes) h += '<div class="card"><h2>メモ</h2><div class="pre">' + esc(r.notes) + '</div></div>';
+    const cooked = r.cooked || [];
+    h += '<div class="card"><h2>記録</h2><div class="sub">' + (cooked.length ? '作った回数 ' + cooked.length + '回 ・ 最後 ' + esc(cooked[cooked.length - 1]) : 'まだ作った記録はありません') + (r.source ? '<br>出典: ' + esc(r.source) : '') + '</div>'
+      + (cooked.length ? '<button class="sub" style="margin-top:6px;text-decoration:underline" data-act="uncook" data-id="' + r.id + '">最後の記録を取り消す</button>' : '') + '</div>';
+    h += '<button class="btn btn-ghost" data-act="edit-recipe" data-id="' + r.id + '">✏️ 編集</button><button class="btn btn-danger" data-act="del-recipe" data-id="' + r.id + '">🗑 削除</button>';
+    h += '</div>';
+    el.innerHTML = h;
+    return;
+  }
+  // 編集
+  const r = SHEET.id ? getRecipe(SHEET.id) : null;
+  const d = SHEET.draft || (r ? JSON.parse(JSON.stringify(r)) : { title: '', tool: '', servings: '', nutrition: '', ingredients: [], steps: [], notes: '', source: '', tags: [] });
+  SHEET.draft = d;
+  const ingText = d.ingredients.map(i => (i.optional ? '?' : '') + i.name + (i.amount ? ' | ' + i.amount : '')).join('\n');
+  let h = '<div class="sh-head"><button data-act="' + (r ? 'cancel-edit' : 'close-sheet') + '">キャンセル</button><div class="ttl">' + (r ? 'レシピを編集' : 'レシピを追加') + '</div><button data-act="save-recipe">保存</button></div><div class="sh-body">';
+  if (!r) h += '<div class="card"><h2>📋 貼り付けて読み取る</h2><textarea id="pasteText" placeholder="Claudeの回答などをそのまま貼り付け（タイトル・材料・作り方・目安）" style="min-height:120px"></textarea><button class="btn btn-secondary" style="margin-top:8px" data-act="parse-paste">読み取って下の欄に入れる</button></div>';
+  h += '<div class="card">'
+    + '<div class="field"><label>料理名</label><input type="text" id="eTitle" value="' + esc(d.title) + '"></div>'
+    + '<div class="row"><div class="field" style="flex:1"><label>器具</label><input type="text" id="eTool" value="' + esc(d.tool) + '" placeholder="Cook4me・レンジ など"></div><div class="field" style="flex:1"><label>分量</label><input type="text" id="eServ" value="' + esc(d.servings) + '" placeholder="2食分"></div></div>'
+    + '<div class="field"><label>材料（1行に1つ。「名前 | 量」。好みでのものは先頭に ?）</label><textarea id="eIng" style="min-height:160px">' + esc(ingText) + '</textarea></div>'
+    + '<div class="field"><label>作り方（1行に1手順）</label><textarea id="eSteps" style="min-height:140px">' + esc(d.steps.join('\n')) + '</textarea></div>'
+    + '<div class="field"><label>栄養のめやす</label><input type="text" id="eNut" value="' + esc(d.nutrition) + '" placeholder="約500kcal／P40 F10 C60"></div>'
+    + '<div class="field"><label>タグ（「、」区切り。空なら自動）</label><input type="text" id="eTags" value="' + esc((d.tags || []).join('、')) + '"></div>'
+    + '<div class="field"><label>メモ</label><textarea id="eNotes">' + esc(d.notes) + '</textarea></div>'
+    + '<div class="field"><label>出典</label><input type="text" id="eSrc" value="' + esc(d.source) + '"></div>'
+    + '</div><button class="btn btn-primary" data-act="save-recipe">保存</button></div>';
+  el.innerHTML = h;
+}
+function readEditForm(){
+  const v = id => (document.getElementById(id) || {}).value || '';
+  const ingredients = v('eIng').split(/\r?\n/).map(line => {
+    const t = line.trim(); if (!t) return null;
+    const optional = t.startsWith('?') || t.startsWith('？');
+    const body = t.replace(/^[?？]\s*/, '');
+    if (body.includes('|')) { const [n, a = ''] = body.split('|'); return n.trim() ? { name: n.trim(), amount: a.trim(), optional } : null; }
+    const p = parseIngLine(body); if (p) p.optional = p.optional || optional; return p;
+  }).filter(Boolean);
+  const tagsIn = v('eTags').split(/[、,，]/).map(s => s.trim()).filter(Boolean);
+  const d = { title: v('eTitle').trim(), tool: v('eTool').trim(), servings: v('eServ').trim(), nutrition: v('eNut').trim(),
+    ingredients, steps: v('eSteps').split(/\r?\n/).map(s => s.trim().replace(/^(\d+[.．)]|[①-⑳])\s*/, '')).filter(Boolean), notes: v('eNotes').trim(), source: v('eSrc').trim(), tags: tagsIn };
+  return d;
+}
+function saveRecipe(){
+  const d = readEditForm();
+  if (!d.title) { toast('料理名を入れてください'); return; }
+  if (!d.tags.length) d.tags = autoTags(d);
+  let r = SHEET.id ? getRecipe(SHEET.id) : null;
+  if (r) Object.assign(r, d, { updated: Date.now() });
+  else { r = Object.assign({ id: uid('r'), fav: false, cooked: [], created: todayStr(), updated: Date.now() }, d); S.recipes.unshift(r); }
+  save();
+  SHEET = { mode: 'view', id: r.id }; renderSheet(); document.getElementById('sheet').scrollTop = 0;
+  toast('保存しました');
+}
+
+function foodSheetHtml(){
+  const f = S.foods.find(x => x.id === SHEET.id);
+  if (!f) return '';
+  const uses = S.recipes.filter(r => (r.ingredients || []).some(i => !isStaple(i.name) && nameMatch(i.name, f.name)));
+  let h = '<div class="sh-head"><button data-act="close-sheet">‹ 戻る</button><div class="ttl">' + esc(f.name) + '</div><button data-act="save-food">保存</button></div><div class="sh-body"><div class="card">'
+    + '<div class="field"><label>名前</label><input type="text" id="fName" value="' + esc(f.name) + '"></div>'
+    + '<div class="field"><label>場所</label><select id="fPlace">' + PLACES.map(p => '<option' + (p === f.place ? ' selected' : '') + '>' + p + '</option>').join('') + '</select></div>'
+    + '<div class="field"><label>在庫</label><div class="seg" id="fStatus">' + Object.keys(STATUS).map(k => '<button data-act="fstatus" data-v="' + k + '" class="' + (f.status === k ? 'sel' : '') + '">' + STATUS[k] + '</button>').join('') + '</div></div>'
+    + '<div class="field"><label>期限（任意）</label><div class="row"><input type="date" id="fExp" value="' + esc(f.exp) + '"><button class="btn btn-ghost" style="width:72px;flex-shrink:0;padding:11px" data-act="clear-exp">消す</button></div></div>'
+    + '<div class="field"><label>メモ（任意・量など）</label><input type="text" id="fMemo" value="' + esc(f.memo) + '" placeholder="残り2パック など"></div>'
+    + '</div><button class="btn btn-primary" data-act="save-food">保存</button><button class="btn btn-danger" data-act="del-food">この食材を消す</button>';
+  h += '<div class="card" style="margin-top:12px"><h2>この食材を使うレシピ（' + uses.length + '）</h2>' + (uses.length ? uses.map(r => '<button class="rc" style="margin-bottom:6px" data-act="open-recipe" data-id="' + r.id + '"><div class="t" style="font-size:14px">' + esc(r.title) + '</div></button>').join('') : '<div class="sub">ありません</div>') + '</div>';
+  return h + '</div>';
+}
+
+// ---------- 操作 ----------
+function addFood(name, place){
+  name = String(name || '').trim();
+  if (!name) return null;
+  const ex = S.foods.find(f => norm(f.name) === norm(name));
+  if (ex) { ex.status = 'have'; ex.noShop = false; ex.updated = Date.now(); if (place) ex.place = place; save(); return ex; }
+  const f = { id: uid('f'), name, place: place || '冷蔵', status: 'have', exp: '', memo: '', updated: Date.now() };
+  S.foods.push(f); save(); return f;
+}
+function cycleFood(id){
+  const f = S.foods.find(x => x.id === id); if (!f) return;
+  f.status = NEXT_STATUS[f.status] || 'have';
+  if (f.status !== 'have') f.noShop = false;
+  f.updated = Date.now(); save();
+}
+function addShop(name, from){
+  name = String(name || '').trim(); if (!name) return false;
+  // 在庫にあるものなら、在庫側を「なし」にして自動の欄に出す
+  const f = S.foods.find(x => norm(x.name) === norm(name));
+  if (f) { if (f.status === 'have') f.status = 'out'; f.noShop = false; f.updated = Date.now(); save(); return true; }
+  if (S.shop.some(x => norm(x.name) === norm(name) && !x.done)) return false;
+  S.shop.push({ id: uid('s'), name, from: from || '', done: false, added: todayStr() });
+  save(); return true;
+}
+function missingToShop(r){
+  const chk = recipeCheck(r);
+  let n = 0;
+  for (const m of chk.missing) { if (m.food) { m.food.status = 'out'; m.food.noShop = false; n++; } else if (addShop(m.ing.name, r.title)) n++; }
+  save();
+  return n;
+}
+function boughtFood(id){
+  const f = S.foods.find(x => x.id === id); if (!f) return;
+  f.status = 'have'; f.updated = Date.now(); save();
+}
+function shopToStock(){
+  const done = S.shop.filter(x => x.done);
+  for (const x of done) addFood(x.name, guessPlace(x.name));
+  S.shop = S.shop.filter(x => !x.done);
+  save();
+  return done.length;
+}
+function guessPlace(name){
+  const n = String(name);
+  if (/冷凍/.test(n)) return '冷凍';
+  if (/缶|米|麦|パスタ|乾燥|わかめ|のり|海苔|粉|だし/.test(n)) return '常温';
+  if (/醤油|しょうゆ|みりん|酒|酢|ソース|ペースト|オイル|油|味噌|麹|胡椒|こしょう|砂糖|塩|チューブ|おろし|ドレッシング|コンソメ|鶏ガラ|豆板醤|コチュジャン|カレー粉|片栗粉|ほんだし/.test(n)) return '調味料';
+  return '冷蔵';
+}
+function exportJson(){ return JSON.stringify(Object.assign({ app: 'kitchen-recipes', exportedAt: new Date().toISOString() }, S), null, 1); }
+function importJson(text){
+  let o; try { o = JSON.parse(text); } catch (e) { return '読めませんでした（JSONの形が違います）'; }
+  if (!validState(o)) return '食材・レシピのデータではありません';
+  delete o.app; delete o.exportedAt;
+  S = o; save(); return '';
+}
+function restoreSeed(){
+  const ids = new Set(S.recipes.map(r => r.id));
+  const add = seedRecipes().filter(r => !ids.has(r.id));
+  S.recipes = S.recipes.concat(add); save(); return add.length;
+}
+
+function onClick(e){
+  const b = e.target.closest('[data-act]'); if (!b) {
+    const tb = e.target.closest('.tab-btn'); if (tb) { UI.tab = tb.dataset.tab; window.scrollTo(0, 0); render(); }
+    return;
+  }
+  const act = b.dataset.act, id = b.dataset.id, v = b.dataset.v;
+  const val = x => (document.getElementById(x) || {}).value || '';
+  switch (act) {
+    case 'dismiss-seed': S.seedNotice = false; save(); render(); break;
+    case 'dismiss-broken': S.brokenNotice = false; save(); render(); break;
+    case 'add-food': { const f = addFood(val('newFood'), val('newPlace')); if (f) toast(f.name + ' を「あり」にしました'); render(); break; }
+    case 'place': UI.place = v; render(); break;
+    case 'toggle-out': UI.showOut = !UI.showOut; render(); break;
+    case 'cycle': cycleFood(id); render(); break;
+    case 'edit-food': openSheet('food', id); break;
+    case 'fstatus': document.querySelectorAll('#fStatus button').forEach(x => x.classList.toggle('sel', x === b)); break;
+    case 'clear-exp': document.getElementById('fExp').value = ''; break;
+    case 'save-food': {
+      const f = S.foods.find(x => x.id === SHEET.id); if (!f) break;
+      const sel = document.querySelector('#fStatus button.sel');
+      f.name = val('fName').trim() || f.name; f.place = val('fPlace') || f.place; f.exp = val('fExp'); f.memo = val('fMemo').trim();
+      if (sel) f.status = sel.dataset.v;
+      f.updated = Date.now(); save(); closeSheet(); toast('保存しました'); break;
+    }
+    case 'del-food': { const f = S.foods.find(x => x.id === SHEET.id); if (f && confirm(f.name + ' を消しますか？')) { S.foods = S.foods.filter(x => x !== f); save(); closeSheet(); } break; }
+    case 'rfilter': UI.recFilter = UI.recFilter === v && v !== 'all' ? 'all' : v; render(); break;
+    case 'rtag': UI.recTag = UI.recTag === v ? '' : v; render(); break;
+    case 'open-recipe': openSheet('view', id); break;
+    case 'new-recipe': SHEET = { mode: 'edit', id: null }; renderSheet(); document.getElementById('sheet').classList.add('on'); break;
+    case 'close-sheet': closeSheet(); break;
+    case 'fav': { const r = getRecipe(id); if (r) { r.fav = !r.fav; save(); renderSheet(); } break; }
+    case 'cooked': { const r = getRecipe(id); if (r) { (r.cooked = r.cooked || []).push(todayStr()); save(); renderSheet(); toast('作った記録をつけました（' + r.cooked.length + '回目）'); } break; }
+    case 'uncook': { const r = getRecipe(id); if (r && r.cooked && r.cooked.length) { r.cooked.pop(); save(); renderSheet(); } break; }
+    case 'missing-to-shop': { const r = getRecipe(id); if (r) { const n = missingToShop(r); renderSheet(); toast(n + '品を買い物リストに入れました'); } break; }
+    case 'ing-to-shop': { const r = getRecipe(id); const nm = b.dataset.name; const f = findFood(nm); if (f) { f.status = f.status === 'have' ? 'low' : f.status; f.noShop = false; save(); } else addShop(nm, r ? r.title : ''); renderSheet(); toast(nm + ' を買い物リストへ'); break; }
+    case 'edit-recipe': SHEET = { mode: 'edit', id }; renderSheet(); document.getElementById('sheet').scrollTop = 0; break;
+    case 'cancel-edit': SHEET = { mode: 'view', id: SHEET.id }; renderSheet(); break;
+    case 'del-recipe': { const r = getRecipe(id); if (r && confirm('「' + r.title + '」を消しますか？')) { S.recipes = S.recipes.filter(x => x !== r); save(); closeSheet(); toast('消しました'); } break; }
+    case 'parse-paste': {
+      const p = parseRecipeText(val('pasteText'));
+      if (!p.title && !p.ingredients.length) { toast('読み取れませんでした'); break; }
+      SHEET.draft = Object.assign(readEditForm(), p); renderSheet();
+      toast('材料' + p.ingredients.length + '・手順' + p.steps.length + 'を読み取りました。確認して保存'); break;
+    }
+    case 'save-recipe': saveRecipe(); break;
+    case 'add-shop': { if (addShop(val('newShop'))) toast('追加しました'); render(); break; }
+    case 'bought-food': boughtFood(id); toast('「あり」に戻しました'); render(); break;
+    case 'noshop': { const f = S.foods.find(x => x.id === id); if (f) { f.noShop = true; save(); } render(); break; }
+    case 'toggle-shop': { const x = S.shop.find(s => s.id === id); if (x) { x.done = !x.done; save(); } render(); break; }
+    case 'del-shop': S.shop = S.shop.filter(s => s.id !== id); save(); render(); break;
+    case 'shop-to-stock': { const n = shopToStock(); toast(n + '品を食材に入れました'); render(); break; }
+    case 'export': {
+      const blob = new Blob([exportJson()], { type: 'application/json' });
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'kitchen-' + todayStr() + '.json'; a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 2000); break;
+    }
+    case 'copy-json': { const t = exportJson(); (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => toast('コピーしました'), () => toast('コピーできませんでした')); break; }
+    case 'import-text': { const t = val('importText'); if (!t.trim()) { toast('JSONを貼り付けてください'); break; } if (!confirm('今のデータを置き換えます。よいですか？')) break; const err = importJson(t); toast(err || '取り込みました'); render(); break; }
+    case 'restore-seed': { const n = restoreSeed(); toast(n ? n + '品を戻しました' : '消したレシピはありません'); render(); break; }
+    case 'reset': if (confirm('食材・レシピ・買い物リストをすべて初期状態に戻します。書き出していないデータは消えます。よいですか？')) { S = freshState(); save(); render(); toast('初期状態に戻しました'); } break;
+  }
+}
+function onKey(e){
+  if (e.key !== 'Enter' || e.isComposing) return;
+  if (e.target.id === 'newFood') { const f = addFood(e.target.value, (document.getElementById('newPlace') || {}).value); if (f) toast(f.name + ' を「あり」にしました'); render(); setTimeout(() => { const el = document.getElementById('newFood'); if (el) el.focus(); }, 0); }
+  if (e.target.id === 'newShop') { if (addShop(e.target.value)) toast('追加しました'); render(); setTimeout(() => { const el = document.getElementById('newShop'); if (el) el.focus(); }, 0); }
+}
+// 検索欄そのものは描き直さない（日本語入力の変換中に欄を作り直すと入力が壊れる）
+function onInput(e){
+  if (e.isComposing) return;
+  const id = e.target.id;
+  if (id === 'foodQ') { UI.foodQ = e.target.value; const el = document.getElementById('foodList'); if (el) el.innerHTML = foodListHtml(); }
+  if (id === 'recQ') { UI.recQ = e.target.value; const el = document.getElementById('recList'); if (el) el.innerHTML = recipeListHtml(); }
+}
+function onChange(e){
+  if (e.target.id === 'importFile' && e.target.files && e.target.files[0]) {
+    const fr = new FileReader();
+    fr.onload = () => { if (!confirm('今のデータを置き換えます。よいですか？')) return; const err = importJson(fr.result); toast(err || '取り込みました'); render(); };
+    fr.readAsText(e.target.files[0]);
+  }
+}
+
+// ---------- 起動 ----------
+load();
+document.addEventListener('click', onClick);
+document.addEventListener('keydown', onKey);
+document.addEventListener('input', onInput);
+document.addEventListener('compositionend', onInput);
+document.addEventListener('change', onChange);
+render();
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+</script>
+</body>
+</html>
