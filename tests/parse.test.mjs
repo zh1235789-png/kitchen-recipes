@@ -53,3 +53,12 @@ test('空や無関係な文章でも落ちない', () => {
   assert.equal(parse(a, '').ingredients.length, 0);
   parse(a, 'こんにちは');
 });
+test('汁物・サラダのタグは料理名で決める', () => {
+  const a = app();
+  const tags = id => norm(a.$(`S.recipes.find(r => r.id === "${id}").tags`));
+  assert.ok(!tags('seed-veg1').includes('汁物'));
+  assert.ok(!tags('seed-salad1').includes('汁物'));
+  assert.ok(tags('seed-salad1').includes('サラダ'));
+  assert.ok(tags('seed-veg3').includes('汁物'));
+  assert.ok(!tags('seed-chk1').includes('サラダ'));
+});
