@@ -156,7 +156,21 @@ ol.steps li{margin-bottom:8px}
 <script>
 const APP_VERSION = '2026-11-25.11';
 const KEY = 'kitchen.v1';
-const PLACES = ['冷蔵', '冷凍', '常温', '調味料'];
+const PLACES = ['冷蔵', '冷凍', '野菜・果物', '常温', '調味料'];
+const PLACE_SHORT = { '野菜・果物': '野菜' }; // 上のタブは幅が狭いので短く出す
+// 生の野菜・きのこ・果物（缶・汁・粉・茶・種・冷凍などの加工品は除く）
+const VEG_RE = /たまねぎ|玉ねぎ|玉葱|長ねぎ|ねぎ|葱|にんじん|人参|キャベツ|白菜|レタス|トマト|きゅうり|胡瓜|なす|茄子|ピーマン|パプリカ|ほうれん草|小松菜|水菜|ニラ|にら|もやし|大根|ごぼう|れんこん|じゃがいも|さつまいも|里芋|長芋|かぼちゃ|ブロッコリー|カリフラワー|アスパラ|オクラ|ズッキーニ|セロリ|ベビーリーフ|大葉|しそ|パセリ|しめじ|まいたけ|舞茸|えのき|しいたけ|椎茸|エリンギ|マッシュルーム|きのこ|アボカド|レモン|ライム|バナナ|りんご|みかん|オレンジ|いちご|ぶどう|キウイ|梨|柿|生姜|しょうが|にんにく/;
+const NOT_FRESH_RE = /冷凍|缶|汁|塩|茶|種|粉|乾燥|干し|おろし|チューブ|ペースト|ドレッシング|ソース|ジュース|ふりかけ|パウダー|油|酢|漬|ジャム|ケチャップ/;
+function isFreshProduce(name){ const n = String(name || ''); return VEG_RE.test(n) && !NOT_FRESH_RE.test(n); }
+// 2026-11-26 に「野菜・果物」を足した。前からある生野菜（冷蔵・常温に入っていたもの）は1回だけ移す。
+// 時刻は変えない（各端末が読み込み・同期のたびに同じように直すので、同期で別の変更を上書きしない）
+function fixPlace(f){
+  if (!f || typeof f !== 'object') return;
+  if (!PLACES.includes(f.place)) { f.place = guessPlace(f.name); f.pv = 6; return; }
+  if (f.pv >= 6) return;
+  if ((f.place === '冷蔵' || f.place === '常温') && isFreshProduce(f.name)) f.place = '野菜・果物';
+  f.pv = 6;
+}
 const STATUS = { have: 'あり', low: '少ない', out: 'なし' };
 
 // ---------- 保存（localStorage は必ずラッパ経由） ----------
@@ -665,7 +679,7 @@ function seedFoods(){
   };
   const out = [];
   const t = Date.parse('2026-11-25T00:00:00+09:00');
-  for (const place of PLACES) for (const name of (G[place] || [])) out.push({ id: seedFoodId(name), name, place, status: 'have', exp: '', memo: '', updated: t });
+  for (const place of PLACES) for (const name of (G[place] || [])) out.push({ id: seedFoodId(name), name, place, status: 'have', exp: '', memo: '', updated: t, pv: 6 });
   return out;
 }
 // 初期データの id は端末ごとに同じにする（別々の id だと同期で同じ食材が2つになる）
@@ -697,6 +711,7 @@ function load(){
 // v1（同期前）: 初期食材の id が端末ごとにばらばらだったので、そろえる
 function migrate(){
   if (!S.deleted || typeof S.deleted !== 'object') S.deleted = {};
+  for (const f of S.foods) fixPlace(f);
   if ((S.v || 1) < 2) {
     const seedNames = new Set(seedFoods().map(f => f.name));
     const used = new Set();
@@ -819,6 +834,8 @@ function mergeRemote(R){
     }
     S[col] = S[col].filter(x => byName.get(norm(x.name)) === x);
   }
+  // 古い版の端末から来た食材も「野菜・果物」へ振り分ける
+  for (const f of S.foods) fixPlace(f);
   // Mac の kitchen_add_recipe.py から入ったレシピはタグが空なので、ここで付ける
   for (const r of S.recipes) if (r && (!Array.isArray(r.tags) || !r.tags.length)) r.tags = autoTags(r);
   // 墓標は60日で捨てる（それより古い端末はまず無い）
@@ -907,7 +924,7 @@ function renderSyncCard(){
 }
 
 // ---------- UI 状態 ----------
-const UI = { tab: 'foods', place: 'all', showOut: true, foodQ: '', recQ: '', recFilter: 'all', recTag: '', editFood: null };
+const UI = { tab: 'foods', place: 'all', showOut: true, spiceOpen: false, foodQ: '', recQ: '', recFilter: 'all', recTag: '', editFood: null };
 
 function toast(msg){
   const t = document.getElementById('toast');
@@ -958,7 +975,7 @@ function renderFoods(){
   if (soon.length) h += '<div class="notice">⏰ 早めに使う: ' + soon.map(f => esc(f.name) + '（' + (daysUntil(f.exp) < 0 ? '期限切れ' : 'あと' + daysUntil(f.exp) + '日') + '）').join('、') + '</div>';
   h += '<div class="card"><div class="row"><input type="text" id="newFood" placeholder="食材を追加（例: しめじ）" enterkeyhint="done"><select id="newPlace" style="width:96px;flex-shrink:0">' + PLACES.map(p => '<option' + (p === (UI.place === 'all' ? '冷蔵' : UI.place) ? ' selected' : '') + '>' + p + '</option>').join('') + '</select></div><button class="btn btn-primary" style="margin-top:8px" data-act="add-food">追加</button></div>';
   h += '<input type="search" id="foodQ" placeholder="🔍 食材を検索" value="' + esc(UI.foodQ) + '" style="margin-bottom:10px">';
-  h += '<div class="seg" style="margin-bottom:6px">' + ['all'].concat(PLACES).map(p => '<button data-act="place" data-v="' + p + '" class="' + (UI.place === p ? 'sel' : '') + '">' + (p === 'all' ? 'すべて' : p) + '</button>').join('') + '</div>';
+  h += '<div class="seg" style="margin-bottom:6px">' + ['all'].concat(PLACES).map(p => '<button data-act="place" data-v="' + p + '" class="' + (UI.place === p ? 'sel' : '') + '">' + (p === 'all' ? 'すべて' : (PLACE_SHORT[p] || p)) + '</button>').join('') + '</div>';
   h += '<div class="row" style="justify-content:flex-end;margin:6px 2px 0"><button class="sub" data-act="toggle-out">' + (UI.showOut ? '「なし」を隠す' : '「なし」も表示') + '</button></div>';
   h += '<div id="foodList">' + foodListHtml() + '</div>';
   h += '<p class="sub" style="margin-top:10px">右で あり／少ない／なし を選びます。「少ない」「なし」は買い物リストに出ます。名前をタップで期限・メモ・場所の変更。</p>';
@@ -985,11 +1002,21 @@ function foodListHtml(){
     items.sort(foodOrder);
     const haveN = items.filter(f => f.status !== 'out').length;
     h += '<div class="grp-h"><span>' + p + '</span><span>' + haveN + ' / ' + items.length + '</span></div>';
+    // 調味料は数が多くてめったに切れないので、「すべて」では「少ない・なし」だけ出して残りは畳む（検索中・調味料タブでは全部出す）
+    let hidden = 0;
+    if (p === '調味料' && UI.place === 'all' && !q && !UI.spiceOpen) {
+      const shown = items.filter(f => f.status !== 'have');
+      hidden = items.length - shown.length;
+      items = shown;
+      if (!items.length) h += '<div class="sub" style="margin:0 4px 6px">切れているものはありません</div>';
+    }
     for (const f of items) {
       const meta = [expLabel(f), f.memo ? esc(f.memo) : ''].filter(Boolean).join(' ・ ');
       h += '<div class="food ' + f.status + '"><button class="nm" style="text-align:left" data-act="edit-food" data-id="' + f.id + '">' + esc(f.name) + (meta ? '<div class="meta">' + meta + '</div>' : '') + '</button>'
         + '<div class="stseg">' + Object.keys(STATUS).map(k => '<button class="' + k + (f.status === k ? ' sel' : '') + '" data-act="setst" data-id="' + f.id + '" data-v="' + k + '">' + STATUS[k] + '</button>').join('') + '</div></div>';
     }
+    if (hidden) h += '<button class="btn btn-secondary" style="margin:4px 0 2px;padding:9px" data-act="toggle-spice">▼ 残りの調味料 ' + hidden + '品を表示</button>';
+    else if (p === '調味料' && UI.place === 'all' && !q && UI.spiceOpen) h += '<button class="btn btn-secondary" style="margin:4px 0 2px;padding:9px" data-act="toggle-spice">▲ 「あり」の調味料をたたむ</button>';
   }
   if (!any) h += '<div class="empty">' + (q ? '見つかりません。上の欄から追加できます。' : '食材がありません') + '</div>';
   return h;
@@ -1226,7 +1253,7 @@ function addFood(name, place){
   if (!name) return null;
   const ex = S.foods.find(f => norm(f.name) === norm(name));
   if (ex) { ex.status = 'have'; ex.noShop = false; ex.updated = Date.now(); if (place) ex.place = place; save(); return ex; }
-  const f = { id: uid('f'), name, place: place || '冷蔵', status: 'have', exp: '', memo: '', updated: Date.now() };
+  const f = { id: uid('f'), name, place: PLACES.includes(place) ? place : guessPlace(name), status: 'have', exp: '', memo: '', updated: Date.now(), pv: 6 };
   S.foods.push(f); save(); return f;
 }
 function addShop(name, from){
@@ -1259,6 +1286,7 @@ function shopToStock(){
 function guessPlace(name){
   const n = String(name);
   if (/冷凍/.test(n)) return '冷凍';
+  if (isFreshProduce(n)) return '野菜・果物';
   if (/缶|米|麦|パスタ|乾燥|わかめ|のり|海苔|粉|だし/.test(n)) return '常温';
   if (/醤油|しょうゆ|みりん|酒|酢|ソース|ペースト|オイル|油|味噌|麹|胡椒|こしょう|砂糖|塩|チューブ|おろし|ドレッシング|コンソメ|鶏ガラ|豆板醤|コチュジャン|カレー粉|片栗粉|ほんだし/.test(n)) return '調味料';
   return '冷蔵';
@@ -1293,6 +1321,7 @@ function onClick(e){
     case 'add-food': { const f = addFood(val('newFood'), val('newPlace')); if (f) toast(f.name + ' を「あり」にしました'); render(); break; }
     case 'place': UI.place = v; render(); break;
     case 'toggle-out': UI.showOut = !UI.showOut; render(); break;
+    case 'toggle-spice': UI.spiceOpen = !UI.spiceOpen; render(); break;
     case 'setst': setFoodStatus(id, v); render(); break;
     case 'edit-food': openSheet('food', id); break;
     case 'fstatus': document.querySelectorAll('#fStatus button').forEach(x => x.classList.toggle('sel', x === b)); break;
