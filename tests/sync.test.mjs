@@ -141,3 +141,17 @@ test('両方の端末から消えた項目の墓標も引き継ぎ、さらに�
   a.$(`mergeRemote(${JSON.stringify(doc(fresh()))})`);
   assert.ok(!a.$('S.recipes.some(r => r.id === "seed-chk4")'));
 });
+
+test('Mac のスクリプト（kitchen_add_recipe.py）で Gist に足したレシピが取り込まれ、タグ・PFCが付く', () => {
+  const a = fresh();
+  const remote = { app: 'kitchen-recipes', v: 2, foods: [], shop: [], deleted: {}, recipes: [{
+    id: 'rnew1', title: '鮭のホイル焼き', tool: 'レンジグリル', servings: '2人分', yield: 2.0,
+    ingredients: [{ name: '冷凍鮭', amount: '2切れ', optional: false }, { name: 'しめじ', amount: '100g', optional: false }, { name: '醤油', amount: '小さじ2', optional: false }],
+    steps: ['包んで焼く'], notes: '', source: 'Claude', nutrition: '', tags: [], pfcAuto: true, updated: T + 5, fav: false, cooked: [], created: '2026-11-25' }] };
+  assert.equal(a.$(`mergeRemote(${JSON.stringify(remote)})`), true);
+  const r = norm(a.$('getRecipe("rnew1")'));
+  assert.ok(r.tags.includes('鮭') && r.tags.includes('レンジグリル'));
+  const p = norm(a.$('recipePfc(getRecipe("rnew1"))'));
+  assert.equal(p.p, 24); // (鮭200g×22.3 + しめじ100g×2.7 + 醤油12g×7.7)/100 ÷ 2 = 24.1
+  assert.ok(a.$('S.recipes.length') > 34, '初期レシピは消えない');
+});

@@ -154,7 +154,7 @@ ol.steps li{margin-bottom:8px}
   <button data-tab="settings" class="tab-btn"><span class="ic">⚙️</span>設定</button>
 </nav>
 <script>
-const APP_VERSION = '2026-11-25.10';
+const APP_VERSION = '2026-11-25.11';
 const KEY = 'kitchen.v1';
 const PLACES = ['冷蔵', '冷凍', '常温', '調味料'];
 const STATUS = { have: 'あり', low: '少ない', out: 'なし' };
@@ -819,6 +819,8 @@ function mergeRemote(R){
     }
     S[col] = S[col].filter(x => byName.get(norm(x.name)) === x);
   }
+  // Mac の kitchen_add_recipe.py から入ったレシピはタグが空なので、ここで付ける
+  for (const r of S.recipes) if (r && (!Array.isArray(r.tags) || !r.tags.length)) r.tags = autoTags(r);
   // 墓標は60日で捨てる（それより古い端末はまず無い）
   const cut = Date.now() - 60 * 86400000;
   for (const k of Object.keys(deleted)) if (deleted[k] < cut) delete deleted[k];
